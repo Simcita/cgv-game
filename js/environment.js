@@ -25,17 +25,17 @@ export class Environment {
 
     // Ground
     const groundGeo = new THREE.PlaneGeometry(200, 200);
-    const groundMat = new THREE.MeshPhongMaterial({ color: 0x88c070 });
+    const groundMat = new THREE.MeshPhongMaterial({ color: 0xDEB887, roughness: 0.8 });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = 0;
     ground.name = 'ground';
     this.scene.add(ground);
 
-    this.createObstacles();
+    //this.createObstacles();
   }
 
-  createObstacles() {
+  /*createObstacles() {
     // Jump platforms
     for (let i = 0; i < 3; i++) {
       const boxGeo = new THREE.BoxGeometry(3, 1, 3);
@@ -68,6 +68,7 @@ export class Environment {
     this.scene.add(cube);
     this.collidables.push(cube);
   }
+*/
 
   loadPlayerModel() {
     return new Promise((resolve, reject) => {

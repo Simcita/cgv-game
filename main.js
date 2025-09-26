@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { Environment } from './js/environment.js';
 import { PlayerController } from './js/playerController.js';
+import { createChildBedroom } from './2nd level/terrain.js';
 
 // Initialize renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -29,6 +30,13 @@ environment.loadPlayerModel()
     console.error('Error loading player model:', error);
   });
 
+// ===========Create terrain from 2nd level================// 
+const { updateTrain } = createChildBedroom(environment.getScene());
+const { roomGroup, floor } = createChildBedroom(environment.getScene());
+//shadows of the renderer 
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
 // Handle window resize
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -44,6 +52,7 @@ function animate() {
   
   environment.update(delta);
   playerController.update(delta);
+  updateTrain(delta);
   
   renderer.render(environment.getScene(), camera);
   renderer.setAnimationLoop(animate);
