@@ -1,0 +1,11 @@
+createChildBedroom({
+  scene: environment.getScene(),
+  THREE: THREE,
+  loader: new GLTFLoader(),
+  url: './models/childs_room_day_-_house_-_room.glb',
+}).then(({ roomGroup, collidables}) => {
+  console.log('Child bedroom loaded:', roomGroup, collidables);
+})
+.catch((error) => {
+  console.error('Error loading child bedroom:', error);
+});
