@@ -5,9 +5,9 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createChildBedroom } from './2nd level/usingmodels.js'; 
 import { Environment } from './js/environment.js';
 import { PlayerController } from './js/playerController.js';
-import { train } from './2nd level/terrain.js'; //train
-
-
+import { train } from './2nd level/terrain.js'; //this is for the blocks tweak after
+import { addMirror } from './2nd level/mirror.js'; //mirror
+import { addTrain } from './2nd level/train.js'; //train
 
 // Initialize renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -18,7 +18,7 @@ document.body.appendChild(renderer.domElement);
 
 // Initialize camera
 const camera = new THREE.PerspectiveCamera(
-  45,
+  45, // was 75 i think i changed it to 45
   window.innerWidth / window.innerHeight,
   0.1,
   1000
@@ -38,7 +38,7 @@ environment.loadPlayerModel()
   });
 
 // ===========Create terrain from 2nd level================// 
-//const { updateTrain } = train(environment.getScene()); //for the funny train
+const { blocks } = train(environment.getScene()); //for the funny train
 
 createChildBedroom({
   scene: environment.getScene(),
@@ -63,11 +63,42 @@ createChildBedroom({
   }
 
   // Adjust camera distance so camera starts comfortably inside the room
-  playerController.cameraDistance = Math.min(playerController.cameraDistance, Math.max(3, (roomBox.getSize(new THREE.Vector3()).length() * 0.08)));
+  playerController.cameraDistance = Math.min(
+    playerController.cameraDistance,
+    Math.max(3, (roomBox.getSize(new THREE.Vector3()).length() * 0.08))
+  );
+
+  //train 
+  addTrain({
+  scene: environment.getScene(),
+  loader: new GLTFLoader(),
+  makeCollidable: true
+}).then(({ trainGroup }) => {
+  console.log('Train added:', trainGroup);
+});
+
+  // --- ADD MIRROR HERE ---
+  addMirror({
+    scene: environment.getScene(),
+    THREE: THREE,
+    loader: new GLTFLoader(),
+    url: './models/mirror_a.glb'
+  })
+  .then(({ m }) => {
+    console.log('Mirror added:', m);
+    // if the mirror needs to be collidable:
+    environment.addCollidables([m]);
+  })
+  .catch((err) => {
+    console.error('Error loading mirror:', err);
+  });
+  // --- END ADD MIRROR ---
+
 })
 .catch((error) => {
   console.error('Error loading child bedroom:', error);
 });
+
 // ====================================================//
 
 // Handle window resize

@@ -131,6 +131,7 @@ export function train(Scene) {
         cube.castShadow = true;
         blocks.add(cube);
     }
+    blocks.scale.set(0.6, 0.6, 0.6);
     blocks.position.set(0.6, 0, 1.0);
     roomGroup.add(blocks);
 
@@ -246,7 +247,9 @@ export function train(Scene) {
     // Final position: put the room so that floor y=0 in world space
     roomGroup.position.y = 0;
 
-    Scene.add(roomGroup);
+    Scene.add(blocks);  //code to add blocks to the scene
+
+    //Scene.add(roomGroup);
 
     // Return useful refs so caller can tweak / add physics and animate the train
     return { roomGroup, floor, blocks, bedGroup, lampLight, trainGroup, updateTrain };
