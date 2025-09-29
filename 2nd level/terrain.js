@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export function createChildBedroom(Scene) {
+export function train(Scene) {
     const roomGroup = new THREE.Group();
     roomGroup.name = 'ChildBedroom';
 

@@ -1,3 +1,4 @@
+// playercontroller.js
 import * as THREE from 'three';
 
 export class PlayerController {
@@ -20,7 +21,7 @@ export class PlayerController {
     this.mouseY = 0;
     this.cameraAngleX = 0;
     this.cameraAngleY = 0.5;
-    this.cameraDistance = 10;
+    this.cameraDistance = 6; // reduced so camera stays inside rooms by default
 
     this.jumpCooldown = false;
     this.lastSpaceTime = 0;
@@ -165,7 +166,7 @@ export class PlayerController {
 
     document.addEventListener('wheel', (e) => {
       this.cameraDistance += e.deltaY * 0.01;
-      this.cameraDistance = Math.max(4, Math.min(20, this.cameraDistance));
+      this.cameraDistance = Math.max(3, Math.min(20, this.cameraDistance));
     });
   }
 
@@ -205,9 +206,7 @@ export class PlayerController {
 
     this.jumpCooldown = true;
     setTimeout(() => (this.jumpCooldown = false), 200);
-}
-
-
+  }
 
   update(delta) {
     this.updatePlayer(delta);
@@ -251,8 +250,16 @@ export class PlayerController {
         }
     }
 
-    // --- Horizontal movement + step-up ---
+    // --- Horizontal movement + boundary clamp + step-up ---
     const nextPos = player.position.clone().add(move);
+
+    // Clamp to room bounds if available
+    const roomBox = this.environment.getRoomBounds();
+    if (roomBox) {
+      const margin = this.PLAYER_HALF_WIDTH + 0.05;
+      nextPos.x = Math.max(roomBox.min.x + margin, Math.min(roomBox.max.x - margin, nextPos.x));
+      nextPos.z = Math.max(roomBox.min.z + margin, Math.min(roomBox.max.z - margin, nextPos.z));
+    }
 
     let blocked = false;
     let maxStepUpY = -Infinity;
@@ -260,7 +267,7 @@ export class PlayerController {
     for (const obj of collidables) {
         const box = new THREE.Box3().setFromObject(obj);
 
-        // Horizontal collision box at player current height
+        // Horizontal collision box at player current height but using next X/Z
         const playerBox = new THREE.Box3(
             new THREE.Vector3(nextPos.x - this.PLAYER_HALF_WIDTH, player.position.y, nextPos.z - this.PLAYER_HALF_WIDTH),
             new THREE.Vector3(nextPos.x + this.PLAYER_HALF_WIDTH, player.position.y + this.PLAYER_HEIGHT, nextPos.z + this.PLAYER_HALF_WIDTH)
@@ -283,7 +290,9 @@ export class PlayerController {
     }
 
     if (!blocked) {
-        player.position.add(move);
+        // Apply horizontal movement to player position using clamped nextPos
+        player.position.x = nextPos.x;
+        player.position.z = nextPos.z;
 
         if (maxStepUpY > -Infinity) {
             player.position.y = maxStepUpY;
@@ -319,10 +328,7 @@ export class PlayerController {
         const angle = Math.atan2(move.x, move.z);
         player.rotation.y = angle;
     }
-}
-
-
-
+  }
 
   updateCamera() {
     const player = this.environment.getPlayer();

@@ -1,3 +1,4 @@
+// usingmodels.js
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
@@ -34,9 +35,16 @@ export async function createChildBedroom({
         room.position.set(0, 0, 0);
         room.updateMatrixWorld(true);
 
-        const box = new THREE.Box3().setFromObject(room);
+        // Compute bounding box after scale/position
+        let box = new THREE.Box3().setFromObject(room);
         const height = box.getSize(new THREE.Vector3()).y;
-        room.position.y = (height / 2) - 0.8;  // place bottom at y=0
+
+        // Place bottom of the room at y = 0
+        room.position.y = (height / 2) - 0.8;
+        room.updateMatrixWorld(true);
+
+        // Recompute bounding box now that we've shifted the room vertically
+        const roomBox = new THREE.Box3().setFromObject(room);
 
         const collidables = [];
         room.traverse((child) => {
@@ -57,7 +65,7 @@ export async function createChildBedroom({
           scene.add(roomGroup);
         }
 
-        resolve({ roomGroup, room, collidables, gltf });
+        resolve({ roomGroup, room, collidables, roomBox, gltf });
       },
       (xhr) => {
         if (xhr && xhr.lengthComputable && typeof onProgress === 'function') {
