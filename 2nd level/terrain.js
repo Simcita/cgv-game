@@ -4,7 +4,7 @@ export function train(Scene) {
     const roomGroup = new THREE.Group();
     roomGroup.name = 'ChildBedroom';
 
-    // --- CONFIG ---
+    /*// --- CONFIG ---
     const roomWidth = 10;   // x
     const roomDepth = 12;   // z
     const roomHeight = 3;   // y
@@ -117,6 +117,7 @@ export function train(Scene) {
     lampLight.position.set(stand.position.x, 0.8, stand.position.z);
     lampLight.castShadow = true;
     roomGroup.add(lampLight);
+    */
 
     // --- TOY BLOCKS (scattered colorful cubes) ---
     const blockColors = [0xff6b6b, 0xffb86b, 0xfff77a, 0x8bd3dd, 0x9b8cff];
@@ -140,6 +141,7 @@ export function train(Scene) {
     const ambient = new THREE.HemisphereLight(0xffffff, 0x444444, 0.5);
     roomGroup.add(ambient);
 
+    /*
     // --- TRAIN SET (beside the bed) ---
     // Simple circular track + 3-car train. Expose updateTrain(delta) for animation.
     const trainGroup = new THREE.Group();
@@ -233,6 +235,7 @@ export function train(Scene) {
     updateTrain(0);
 
     roomGroup.add(trainGroup);
+    
 
     // --- enable shadows on group children (where appropriate) ---
     roomGroup.traverse(obj => {
@@ -243,6 +246,7 @@ export function train(Scene) {
             obj.receiveShadow = obj.receiveShadow ?? true;
         }
     });
+    */
 
     // Final position: put the room so that floor y=0 in world space
     roomGroup.position.y = 0;
@@ -252,5 +256,5 @@ export function train(Scene) {
     //Scene.add(roomGroup);
 
     // Return useful refs so caller can tweak / add physics and animate the train
-    return { roomGroup, floor, blocks, bedGroup, lampLight, trainGroup, updateTrain };
+    return { roomGroup, blocks};
 }
