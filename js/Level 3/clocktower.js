@@ -1,3 +1,4 @@
+
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
@@ -10,459 +11,201 @@ export class Environment {
     this.playerStartPosition = new THREE.Vector3(0, 0, 10);
     this.roomSize = 100;
     this.extendedRoomSize = this.roomSize + 100;
-
     this.init();
   }
 
   init() {
-    // Scene setup
     this.scene.background = new THREE.Color(0x87CEEB);
     this.scene.fog = new THREE.Fog(0x87CEEB, 150, 300);
-
-    // Basic lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-    this.scene.add(ambientLight);
-
-    // Create workshop
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
     this.createClocktowerWorkshop();
   }
 
   createClocktowerWorkshop() {
-    const roomSize = 100;
-    const extendedRoomSize = roomSize + 100;
-    const wallHeight = 25;
-    const wallThickness = 1;
+    const wallMat = new THREE.MeshPhongMaterial({ color: 0x4B2E1F, shininess: 10 });
+    this.createWallsWithArchway(this.roomSize, this.extendedRoomSize, 25, 1, wallMat);
 
     const floorMat = new THREE.MeshPhongMaterial({ color: 0x808080, shininess: 10 });
-    const wallMat = new THREE.MeshPhongMaterial({ color: 0x4B2E1F, shininess: 10 });
-
-    // Floor
-    const floorGeo = new THREE.PlaneGeometry(roomSize, extendedRoomSize);
+    const floorGeo = new THREE.PlaneGeometry(this.roomSize, this.extendedRoomSize);
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
-    floor.position.y = 0;
-    floor.receiveShadow = true;
     this.scene.add(floor);
     this.collidables.push(floor);
-    this.playerStartPosition = new THREE.Vector3(0, 0, roomSize / 2 - 4);
-    
-    // Walls
-    this.createWallsWithArchway(roomSize, extendedRoomSize, wallHeight, wallThickness, wallMat);
+    this.playerStartPosition = new THREE.Vector3(0, 0, this.roomSize / 2 - 4);
 
-    this.addAnimatedClockFaces();
-
-    // Pathway + Gear Obstacle
     this.createPathway();
     this.createGearObstacle();
+    this.createPendulumObstacle();
+    this.createRisingPlatforms();
+    this.createRotatingPlatforms();
+    this.createSlidingBridge();
     this.createDecorations();
+    this.addAnimatedClockFaces();
   }
 
   createWallsWithArchway(roomSize, extendedRoomSize, wallHeight, wallThickness, wallMat) {
-    // North wall
-    const northWall = new THREE.Mesh(
-      new THREE.BoxGeometry(roomSize, wallHeight, wallThickness),
-      wallMat
-    );
+    const northWall = new THREE.Mesh(new THREE.BoxGeometry(roomSize, wallHeight, wallThickness), wallMat);
     northWall.position.set(0, wallHeight / 2, -extendedRoomSize / 2);
-    northWall.receiveShadow = true;
-    this.scene.add(northWall);
-    this.collidables.push(northWall);
+    this.scene.add(northWall); this.collidables.push(northWall);
 
-    // South wall arch (simplified collision)
-    const archWidth = 4;
-    const archHeight = 8;
+    const invisibleGate = new THREE.Mesh(new THREE.BoxGeometry(4, 8, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
+    invisibleGate.position.set(0, 4, extendedRoomSize / 2 - 0.5); this.scene.add(invisibleGate); this.collidables.push(invisibleGate);
 
-    const invisibleGate = new THREE.Mesh(
-      new THREE.BoxGeometry(archWidth, archHeight, 1),
-      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 })
-    );
-    invisibleGate.position.set(0, archHeight / 2, extendedRoomSize / 2 - 0.5);
-    invisibleGate.visible = false;
-    this.scene.add(invisibleGate);
-    this.collidables.push(invisibleGate);
+    const eastWall = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, extendedRoomSize), wallMat);
+    eastWall.position.set(roomSize / 2, wallHeight / 2, 0); this.scene.add(eastWall); this.collidables.push(eastWall);
 
-    // East wall
-    const eastWall = new THREE.Mesh(
-      new THREE.BoxGeometry(wallThickness, wallHeight, extendedRoomSize),
-      wallMat
-    );
-    eastWall.position.set(roomSize / 2, wallHeight / 2, 0);
-    eastWall.receiveShadow = true;
-    this.scene.add(eastWall);
-    this.collidables.push(eastWall);
-
-    // West wall
-    const westWall = new THREE.Mesh(
-      new THREE.BoxGeometry(wallThickness, wallHeight, extendedRoomSize),
-      wallMat
-    );
-    westWall.position.set(-roomSize / 2, wallHeight / 2, 0);
-    westWall.receiveShadow = true;
-    this.scene.add(westWall);
-    this.collidables.push(westWall);
+    const westWall = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, extendedRoomSize), wallMat);
+    westWall.position.set(-roomSize / 2, wallHeight / 2, 0); this.scene.add(westWall); this.collidables.push(westWall);
   }
 
   createPathway() {
-    const pathwayMat = new THREE.MeshPhongMaterial({ color: 0x654321, shininess: 4 });
-    const pathWidth = 10;
-    const pathHeight = 0.05;
-    const sideWallThickness = 0.3; // thin invisible wall
-    const sideWallHeight = 2; // player-height walls
-
-    const pathSegments = [
-      { start: [0, pathHeight, 120], end: [0, pathHeight, 110] },
-      { start: [0, pathHeight, 110], end: [0, pathHeight, 100] },
-      { start: [0, pathHeight, 100], end: [0, pathHeight, 48] },
-      { start: [0, pathHeight, 48], end: [0, pathHeight, 42] },
-      { start: [0, pathHeight, 42], end: [-5, pathHeight, 35] },
-      { start: [-5, pathHeight, 35], end: [-15, pathHeight, 25] },
-      { start: [-15, pathHeight, 25], end: [-25, pathHeight, 15] },
-      { start: [-25, pathHeight, 15], end: [-35, pathHeight, 5] },
-      { start: [-35, pathHeight, 5], end: [-40, pathHeight, -10] },
-      { start: [-40, pathHeight, -10], end: [-25, pathHeight, -25] },
-      { start: [-25, pathHeight, -25], end: [-10, pathHeight, -40] },
-      { start: [-10, pathHeight, -40], end: [10, pathHeight, -55] },
-      { start: [10, pathHeight, -55], end: [25, pathHeight, -70] },
-      { start: [25, pathHeight, -70], end: [15, pathHeight, -85] },
-      { start: [15, pathHeight, -85], end: [0, pathHeight, -95] },
+    const mat = new THREE.MeshPhongMaterial({ color: 0x654321, shininess: 4 });
+    const segments = [
+      [[0, 0.05, 120],[0, 0.05, 110]],[[0, 0.05, 110],[0, 0.05, 100]],[[0, 0.05, 100],[0, 0.05, 48]],
+      [[0, 0.05, 48],[0, 0.05, 42]],[[0, 0.05, 42],[-5,0.05,35]],[[-5,0.05,35],[-15,0.05,25]],
+      [[-15,0.05,25],[-25,0.05,15]],[[-25,0.05,15],[-35,0.05,5]],[[-35,0.05,5],[-40,0.05,-10]],
+      [[-40,0.05,-10],[-25,0.05,-25]],[[-25,0.05,-25],[-10,0.05,-40]],[[-10,0.05,-40],[10,0.05,-55]],
+      [[10,0.05,-55],[25,0.05,-70]],[[25,0.05,-70],[15,0.05,-85]],[[15,0.05,-85],[0,0.05,-95]]
     ];
-
-    pathSegments.forEach((segment) => {
-      const start = new THREE.Vector3(...segment.start);
-      const end = new THREE.Vector3(...segment.end);
-      const direction = new THREE.Vector3().subVectors(end, start);
-      const length = direction.length();
-      const midpoint = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
-
-      const segmentGeo = new THREE.BoxGeometry(pathWidth, pathHeight * 2, length);
-      const segmentMesh = new THREE.Mesh(segmentGeo, pathwayMat);
-      segmentMesh.position.copy(midpoint);
-      segmentMesh.rotation.y = Math.atan2(direction.x, direction.z);
-      segmentMesh.receiveShadow = true;
-      this.scene.add(segmentMesh);
-      
-      const invisibleMat = new THREE.MeshBasicMaterial({ visible: false});
-
-      // Calculate perpendicular offset (90 degrees to path direction)
-      const angle = Math.atan2(direction.x, direction.z);
-      const perpX = Math.cos(angle); // perpendicular X
-      const perpZ = -Math.sin(angle); // perpendicular Z
-      
-      // Left wall
-      const leftWall = new THREE.Mesh(
-        new THREE.BoxGeometry(sideWallThickness, sideWallHeight, length),
-        invisibleMat
-      );
-      leftWall.position.copy(midpoint);
-      leftWall.position.x -= perpX * (pathWidth / 2 + sideWallThickness / 2);
-      leftWall.position.z -= perpZ * (pathWidth / 2 + sideWallThickness / 2);
-      leftWall.rotation.y = angle;
-      this.scene.add(leftWall);
-      this.collidables.push(leftWall);
-
-      // Right wall
-      const rightWall = new THREE.Mesh(
-        new THREE.BoxGeometry(sideWallThickness, sideWallHeight, length),
-        invisibleMat
-      );
-      rightWall.position.copy(midpoint);
-      rightWall.position.x += perpX * (pathWidth / 2 + sideWallThickness / 2);
-      rightWall.position.z += perpZ * (pathWidth / 2 + sideWallThickness / 2);
-      rightWall.rotation.y = angle;
-      this.scene.add(rightWall);
-      this.collidables.push(rightWall);
+    segments.forEach(seg => {
+      const start = new THREE.Vector3(...seg[0]), end = new THREE.Vector3(...seg[1]);
+      const dir = new THREE.Vector3().subVectors(end,start); const mid = new THREE.Vector3().addVectors(start,end).multiplyScalar(0.5);
+      const geo = new THREE.BoxGeometry(10, 0.1, dir.length()); const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.copy(mid); mesh.rotation.y = Math.atan2(dir.x, dir.z);
+      this.scene.add(mesh);
+      this.collidables.push(mesh);
     });
   }
 
   createGearObstacle() {
-    const goldMat = new THREE.MeshPhongMaterial({
-      color: 0xFFD700,
-      shininess: 100,
-      side: THREE.DoubleSide,
-      clippingPlanes: [ new THREE.Plane(new THREE.Vector3(0, -1, 0), 0) ]
-    });
-
-    // Gear parameters
-    const teeth = 24;
-    const outerRadius = 4;
-    const innerRadius = 3;
-    const toothDepth = 0.8; // thinner gear (jumpable)
-
-    const gearShape = new THREE.Shape();
-    for (let i = 0; i < teeth; i++) {
-      const angle = (i / teeth) * Math.PI * 2;
-      const nextAngle = ((i + 1) / teeth) * Math.PI * 2;
-
-      const x1 = Math.cos(angle) * outerRadius;
-      const y1 = Math.sin(angle) * outerRadius;
-      const x2 = Math.cos((angle + nextAngle) / 2) * innerRadius;
-      const y2 = Math.sin((angle + nextAngle) / 2) * innerRadius;
-
-      if (i === 0) {
-        gearShape.moveTo(x1, y1);
-      } else {
-        gearShape.lineTo(x1, y1);
-      }
-      gearShape.lineTo(x2, y2);
-    }
-    gearShape.closePath();
-
-    const extrudeSettings = { depth: toothDepth, bevelEnabled: false };
-    const gearGeometry = new THREE.ExtrudeGeometry(gearShape, extrudeSettings);
-
-    const gear = new THREE.Mesh(gearGeometry, goldMat);
-
-    // Orientation
-    gear.rotation.x = 0;
-    gear.rotation.y = (Math.PI / 2) - Math.PI / 4;
-
-    // Position
-    const pathY = 0.05;
-    gear.position.set(-20.5, pathY - 1.5, 20);
-
-    // Add
-    this.scene.add(gear);
-
-    // 🔑 Save reference for animation
-    this.gear = gear;
+    const mat = new THREE.MeshPhongMaterial({ color: 0xFFD700, shininess: 100 });
+    const shape = new THREE.Shape(); const teeth=24, outerR=4, innerR=3;
+    for(let i=0;i<teeth;i++){
+      const a=i/teeth*Math.PI*2, na=(i+1)/teeth*Math.PI*2;
+      const x1=Math.cos(a)*outerR, y1=Math.sin(a)*outerR, x2=Math.cos((a+na)/2)*innerR, y2=Math.sin((a+na)/2)*innerR;
+      if(i===0) shape.moveTo(x1,y1); else shape.lineTo(x1,y1); shape.lineTo(x2,y2);
+    } shape.closePath();
+    const geo = new THREE.ExtrudeGeometry(shape,{ depth:0.8, bevelEnabled:false });
+    const mesh = new THREE.Mesh(geo, mat); mesh.rotation.y=Math.PI/4; mesh.position.set(-20.5, -2.45, 20);
+    this.scene.add(mesh); this.collidables.push(mesh); this.gear=mesh;
   }
 
-  createDecorations() {
-    // 1️⃣ Lightbulbs along walls
-    const bulbMat = new THREE.MeshStandardMaterial({ 
-      color: 0xffffaa, 
-      emissive: 0xffff88, 
-      emissiveIntensity: 2 
+  createPendulumObstacle() {
+    const g=new THREE.Group(); const rod=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,8,8), new THREE.MeshStandardMaterial({ color:0x444444, metalness:0.8 }));
+    rod.position.y=-4; g.add(rod);
+    const bob=new THREE.Mesh(new THREE.SphereGeometry(1.5,16,16), new THREE.MeshStandardMaterial({ color:0x222222, metalness:0.9 }));
+    bob.position.y=-8; g.add(bob); g.position.set(-10,10,30); this.scene.add(g);
+    this.pendulums=this.pendulums||[]; this.pendulums.push(g); this.collidables.push(g);
+  }
+createRisingPlatforms() {
+    const mat = new THREE.MeshStandardMaterial({ color: 0x777777, metalness: 0.8 });
+    this.platforms = [];
+    const positions = [
+        new THREE.Vector3(-5, 0.5, 35),
+        new THREE.Vector3(-15, 0.5, 25),
+        new THREE.Vector3(-25, 0.5, 15)
+    ];
+    positions.forEach(pos => {
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(4, 0.3, 4), mat);
+        mesh.position.copy(pos);
+        this.scene.add(mesh);
+        this.collidables.push(mesh);
+        this.platforms.push(mesh);
     });
-    const bulbGeo = new THREE.SphereGeometry(0.5, 16, 16);
+}
 
-    // North and South walls
-    for (let i = -40; i <= 40; i += 20) {
-      const northBulb = new THREE.Mesh(bulbGeo, bulbMat);
-      northBulb.position.set(i, 10, -this.extendedRoomSize/2 + 0.5);
-      this.scene.add(northBulb);
+createRotatingPlatforms() {
+    const mat = new THREE.MeshStandardMaterial({ color: 0xb8860b, metalness: 1 });
+    this.rotatingPlatforms = [];
+    const positions = [
+        new THREE.Vector3(-35, 0.3, 5),
+        new THREE.Vector3(-40, 0.3, -10),
+        new THREE.Vector3(-25, 0.3, -25)
+    ];
+    positions.forEach(pos => {
+        const mesh = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 0.3, 24), mat);
+        mesh.rotation.x = Math.PI / 2;
+        mesh.position.copy(pos);
+        this.scene.add(mesh);
+        this.collidables.push(mesh);
+        this.rotatingPlatforms.push(mesh);
+    });
+}
 
-      const southBulb = new THREE.Mesh(bulbGeo, bulbMat);
-      southBulb.position.set(i, 10, this.extendedRoomSize/2 - 0.5);
-      this.scene.add(southBulb);
-    }
+createSlidingBridge() {
+    const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(10, 0.4, 3),
+        new THREE.MeshStandardMaterial({ color: 0x555555 })
+    );
+    mesh.position.set(0, 1, -55); // along the path where player moves next
+    this.scene.add(mesh);
+    this.collidables.push(mesh);
+    this.slidingBridge = mesh;
+}
 
-    // East and West walls
-    for (let i = -40; i <= 40; i += 20) {
-      const eastBulb = new THREE.Mesh(bulbGeo, bulbMat);
-      eastBulb.position.set(this.roomSize/2 - 0.5, 10, i);
-      this.scene.add(eastBulb);
 
-      const westBulb = new THREE.Mesh(bulbGeo, bulbMat);
-      westBulb.position.set(-this.roomSize/2 + 0.5, 10, i);
-      this.scene.add(westBulb);
-    }
-
-    // 2️⃣ Clock faces
-    const clockTexture = new THREE.TextureLoader().load('./textures/clockface.png'); // use your clock face image
-    const clockMat = new THREE.MeshBasicMaterial({ map: clockTexture, transparent: true });
-    const clockGeo = new THREE.PlaneGeometry(6, 6);
-
-    // Place two clocks
-    const northClock = new THREE.Mesh(clockGeo, clockMat);
-    northClock.position.set(-30, 12, -this.extendedRoomSize/2 + 0.6);
-    northClock.rotation.y = 0;
-    this.scene.add(northClock);
-
-    const eastClock = new THREE.Mesh(clockGeo, clockMat);
-    eastClock.position.set(this.roomSize/2 - 0.6, 12, 30);
-    eastClock.rotation.y = -Math.PI / 2;
-    this.scene.add(eastClock);
-
-    // 3️⃣ Scatter nuts & bolts on grey floor
-    const nutMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, metalness: 0.8, roughness: 0.4 });
-    const boltMat = new THREE.MeshStandardMaterial({ color: 0x777777, metalness: 0.9, roughness: 0.3 });
-
-    for (let i = 0; i < 20; i++) {
-      const nut = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.2, 12), nutMat);
-      nut.rotation.x = Math.random() * Math.PI;
-      nut.position.set((Math.random() - 0.5) * this.roomSize * 0.8, 0.1, (Math.random() - 0.5) * this.extendedRoomSize * 0.8);
-      this.scene.add(nut);
-
-      const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.6, 12), boltMat);
-      bolt.rotation.x = Math.random() * Math.PI;
-      bolt.position.set((Math.random() - 0.5) * this.roomSize * 0.8, 0.1, (Math.random() - 0.5) * this.extendedRoomSize * 0.8);
-      this.scene.add(bolt);
+  createDecorations() {
+    const bulbMat=new THREE.MeshStandardMaterial({ color:0xffffaa, emissive:0xffff88, emissiveIntensity:2 });
+    const bulbGeo=new THREE.SphereGeometry(0.5,16,16);
+    for(let i=-40;i<=40;i+=20){
+      let n=new THREE.Mesh(bulbGeo,bulbMat); n.position.set(i,10,-this.extendedRoomSize/2+0.5); this.scene.add(n);
+      let s=new THREE.Mesh(bulbGeo,bulbMat); s.position.set(i,10,this.extendedRoomSize/2-0.5); this.scene.add(s);
+      let e=new THREE.Mesh(bulbGeo,bulbMat); e.position.set(this.roomSize/2-0.5,10,i); this.scene.add(e);
+      let w=new THREE.Mesh(bulbGeo,bulbMat); w.position.set(-this.roomSize/2+0.5,10,i); this.scene.add(w);
     }
   }
 
   addAnimatedClockFaces() {
-    const clockRadius = 3;
-    const wallOffset = 0.6; // slightly in front of wall
-    const clockHeight = 8; // Y position
-
-    // Helper to create clock mesh with hands
-    const createClock = () => {
-      const clock = new THREE.Group();
-
-      // Clock face
-      const faceShape = new THREE.Shape();
-      faceShape.absarc(0, 0, clockRadius, 0, Math.PI * 2, false);
-      const faceGeo = new THREE.ShapeGeometry(faceShape);
-      const faceMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-      const faceMesh = new THREE.Mesh(faceGeo, faceMat);
-      clock.add(faceMesh);
-
-      // Hour markers
-      for (let i = 0; i < 12; i++) {
-        const angle = (i / 12) * Math.PI * 2;
-        const x = Math.cos(angle) * (clockRadius - 0.3);
-        const y = Math.sin(angle) * (clockRadius - 0.3);
-        const markerGeo = new THREE.CircleGeometry(0.1, 8);
-        const markerMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-        const marker = new THREE.Mesh(markerGeo, markerMat);
-        marker.position.set(x, y, 0.01);
-        clock.add(marker);
-      }
-
-      // Hands
-      const hourHandGeo = new THREE.BoxGeometry(0.2, clockRadius * 0.5, 0.05);
-      const hourHandMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-      const hourHand = new THREE.Mesh(hourHandGeo, hourHandMat);
-      hourHand.position.set(0, clockRadius * 0.25, 0.05);
-      clock.add(hourHand);
-
-      const minuteHandGeo = new THREE.BoxGeometry(0.1, clockRadius * 0.8, 0.05);
-      const minuteHandMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-      const minuteHand = new THREE.Mesh(minuteHandGeo, minuteHandMat);
-      minuteHand.position.set(0, clockRadius * 0.4, 0.05);
-      clock.add(minuteHand);
-
-      // Save hands for animation
-      clock.userData = { hourHand, minuteHand };
-
-      return clock;
+    const createClock=()=>{
+      const c=new THREE.Group(); const radius=3;
+      const face=new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape().absarc(0,0,radius,0,Math.PI*2)), new THREE.MeshBasicMaterial({ color:0xffffff })); c.add(face);
+      c.userData={hourHand:new THREE.Mesh(new THREE.BoxGeometry(0.2,radius*0.5,0.05), new THREE.MeshBasicMaterial({ color:0 })), minuteHand:new THREE.Mesh(new THREE.BoxGeometry(0.1,radius*0.8,0.05), new THREE.MeshBasicMaterial({ color:0 }))};
+      c.userData.hourHand.position.set(0,radius*0.25,0.05); c.userData.minuteHand.position.set(0,radius*0.4,0.05); c.add(c.userData.hourHand,c.userData.minuteHand);
+      return c;
     };
-
-    // Create clocks on walls
-    this.clocks = []; // store clocks for animation
-
-    const northClock = createClock();
-    northClock.position.set(-30, clockHeight, -this.extendedRoomSize / 2 + wallOffset);
-    northClock.scale.set(1.5, 1.5, 1.5);
-    this.scene.add(northClock);
-    this.clocks.push(northClock);
-
-    const southClock = createClock();
-    southClock.position.set(30, clockHeight, this.extendedRoomSize / 2 - wallOffset);
-    southClock.rotation.y = Math.PI;
-    this.scene.add(southClock);
-    this.clocks.push(southClock);
-
-    const eastClock = createClock();
-    eastClock.position.set(this.roomSize / 2 - wallOffset, clockHeight, 0);
-    eastClock.rotation.y = -Math.PI / 2;
-    this.scene.add(eastClock);
-    this.clocks.push(eastClock);
-
-    const westClock = createClock();
-    westClock.position.set(-this.roomSize / 2 + wallOffset, clockHeight, 0);
-    westClock.rotation.y = Math.PI / 2;
-    this.scene.add(westClock);
-    this.clocks.push(westClock);
+    this.clocks=[createClock(),createClock(),createClock(),createClock()];
+    this.clocks[0].position.set(-30,8,-this.extendedRoomSize/2+0.6); this.scene.add(this.clocks[0]);
+    this.clocks[1].position.set(30,8,this.extendedRoomSize/2-0.6); this.clocks[1].rotation.y=Math.PI; this.scene.add(this.clocks[1]);
+    this.clocks[2].position.set(this.roomSize/2-0.6,8,0); this.clocks[2].rotation.y=-Math.PI/2; this.scene.add(this.clocks[2]);
+    this.clocks[3].position.set(-this.roomSize/2+0.6,8,0); this.clocks[3].rotation.y=Math.PI/2; this.scene.add(this.clocks[3]);
   }
 
   loadPlayerModel() {
-    return new Promise((resolve, reject) => {
-      const loader = new GLTFLoader();
-      loader.load(
-        './models/AJ.glb',
-        (gltf) => {
-          this.player = gltf.scene;
-          this.player.scale.set(1, 1, 1);
-          this.player.position.copy(this.playerStartPosition);
-          this.player.name = 'player';
-          this.scene.add(this.player);
-          this.mixer = new THREE.AnimationMixer(this.player);
-          resolve(gltf);
-          this.player.rotation.y = Math.PI;
-        },
-        undefined,
-        (error) => reject(error)
-      );
+    return new Promise((res,rej)=>{
+      new GLTFLoader().load('./models/AJ.glb',g=>{
+        this.player=g.scene; this.player.scale.set(1,1,1); this.player.position.copy(this.playerStartPosition); this.player.name='player'; this.scene.add(this.player);
+        this.mixer=new THREE.AnimationMixer(this.player); this.player.rotation.y=Math.PI; res(g);
+      },undefined,err=>rej(err));
     });
   }
 
-  getCollidables() {
-    return this.collidables;
-  }
-
-  getScene() {
-    return this.scene;
-  }
-
-  getPlayer() {
-    return this.player;
-  }
-
-  getMixer() {
-    return this.mixer;
-  }
-
-  getPlayerStartPosition() {
-    return this.playerStartPosition || new THREE.Vector3(0, 0, 10);
-  }
-
-  update(delta) {
-    if (!this.player) return;
-
-    this.prevPlayerPos = this.player.position.clone();
-    // Player movement code here
-
-    this.updateGearCollision();
-    this.updateGearRotation(delta);
-    if (this.mixer) this.mixer.update(delta);
-
-    // Animate clocks
+  update(delta){
+    if(!this.player) return;
+    if(this.mixer) this.mixer.update(delta);
+    this.updateGearRotation(delta); this.updateGearCollision();
     this.updateClockHands(delta);
+
+    if(this.pendulums) this.pendulums.forEach((p,i)=>{ p.rotation.z=Math.sin(Date.now()*0.001+i)*0.6 });
+    if(this.platforms) this.platforms.forEach((p,i)=>{ p.position.y=0.5+Math.sin(Date.now()*0.001+i*1.5)*2 });
+    if(this.rotatingPlatforms) this.rotatingPlatforms.forEach(r=>r.rotation.z+=delta);
+    if(this.slidingBridge) this.slidingBridge.position.x=Math.sin(Date.now()*0.001)*10;
   }
 
-  updateClockHands(delta) {
-    if (!this.clocks) return;
+  updateGearRotation(delta){ if(this.gear) this.gear.rotation.z+=delta; }
 
-    this.clocks.forEach(clock => {
-      const { hourHand, minuteHand } = clock.userData;
-
-      // Rotate minute hand 360° in 60 seconds
-      minuteHand.rotation.z -= delta * (Math.PI * 2 / 60);
-
-      // Rotate hour hand 360° in 12 minutes (or slower for realism)
-      hourHand.rotation.z -= delta * (Math.PI * 2 / 720);
-    });
+  updateGearCollision(){
+    if(!this.player||!this.gear) return;
+    const pb=new THREE.Box3().setFromCenterAndSize(this.player.position.clone().add(new THREE.Vector3(0,1,0)), new THREE.Vector3(1,2,1));
+    const gb=new THREE.Box3().setFromCenterAndSize(this.gear.position.clone(), new THREE.Vector3(4,0.8,4));
+    if(pb.intersectsBox(gb)){ this.player.position.add(new THREE.Vector3().subVectors(this.player.position,this.gear.position).setY(0).normalize().multiplyScalar(2)); this.player.position.y+=0.3; }
   }
 
-  updateGearRotation(delta) {
-    if (this.gear) {
-      this.gear.rotation.z += delta; // Spin speed
-    }
-  }
+  updateClockHands(delta){ if(!this.clocks) return; this.clocks.forEach(c=>{ c.userData.minuteHand.rotation.z-=delta*2*Math.PI/60; c.userData.hourHand.rotation.z-=delta*2*Math.PI/720; }) }
 
-  updateGearCollision() {
-    if (!this.player || !this.gear || !this.prevPlayerPos) return;
-
-    // Player bounding box
-    const playerBox = new THREE.Box3().setFromObject(this.player);
-
-    // Gear bounding box (slightly expanded for solid collision)
-    const gearBox = new THREE.Box3().setFromObject(this.gear);
-    gearBox.expandByScalar(0.5);
-
-    if (playerBox.intersectsBox(gearBox)) {
-      const gearTop = this.gear.position.y + 0.8; // gear height
-      const playerBottom = this.player.position.y;
-
-      // Block only if player is below gear height
-      if (playerBottom < gearTop) {
-        // Block forward/backward movement
-        this.player.position.x = this.prevPlayerPos.x;
-        this.player.position.y = this.prevPlayerPos.y;
-        this.player.position.z = this.prevPlayerPos.z;
-      }
-    }
-  }
+  getCollidables(){ return this.collidables; }
+  getScene(){ return this.scene; }
+  getPlayer(){ return this.player; }
+  getMixer(){ return this.mixer; }
+  getPlayerStartPosition(){ return this.playerStartPosition||new THREE.Vector3(0,0,10); }
 }
+
