@@ -1,126 +1,148 @@
 // main.js
-// Use the ES module build from a CDN
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { createChildBedroom } from './2nd level/usingmodels.js'; 
-import { Environment } from './js/environment.js';
 import { PlayerController } from './js/playerController.js';
-import { train } from './2nd level/terrain.js'; //this is for the blocks tweak after
-import { addMirror } from './2nd level/mirror.js'; //mirror
-import { addTrain } from './2nd level/train.js'; //train
+import { LevelManager } from './js/levelManager.js';
 
-// Initialize renderer
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-document.body.appendChild(renderer.domElement);
-
-// Initialize camera
-const camera = new THREE.PerspectiveCamera(
-  45, // was 75 i think i changed it to 45
-  window.innerWidth / window.innerHeight,
-  0.1,
-  1000
-);
-
-// Initialize environment and player controller
-const environment = new Environment();
-const playerController = new PlayerController(environment, camera, renderer);
-
-// Load player model and setup animations
-environment.loadPlayerModel()
-  .then((gltf) => {
-    playerController.setupAnimations(gltf);
-  })
-  .catch((error) => {
-    console.error('Error loading player model:', error);
-  });
-
-// ===========Create terrain from 2nd level================// 
-const { blocks } = train(environment.getScene()); //for the funny train
-
-createChildBedroom({
-  scene: environment.getScene(),
-  THREE: THREE,
-  loader: new GLTFLoader(),
-  url: './models/stewies_bedroom.glb',
-}).then(({ roomGroup, collidables, roomBox }) => {
-  console.log('Child bedroom loaded:', roomGroup, collidables, roomBox);
-
-  // Add collidable meshes to environment so player uses them for collisions
-  environment.addCollidables(collidables);
-
-  // Expose the room bounding box to environment for clamping player position
-  environment.setRoomBounds(roomBox);
-
-  // If player already loaded, set player to room center (slightly above floor)
-  const player = environment.getPlayer();
-  if (player) {
-    const center = roomBox.getCenter(new THREE.Vector3());
-    // set player to center horizontally, set Y to room floor + small offset
-    player.position.set(center.x, roomBox.min.y + 0.1, center.z);
+class Game {
+  constructor() {
+    this.clock = new THREE.Clock();
+    this.camera = null;
+    this.renderer = null;
+    this.playerController = null;
+    this.levelManager = null;
+    
+    this.init();
   }
 
-  // Adjust camera distance so camera starts comfortably inside the room
-  playerController.cameraDistance = Math.min(
-    playerController.cameraDistance,
-    Math.max(3, (roomBox.getSize(new THREE.Vector3()).length() * 0.08))
-  );
+  init() {
+    // Setup renderer
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(this.renderer.domElement);
 
-  //train 
-  addTrain({
-  scene: environment.getScene(),
-  loader: new GLTFLoader(),
-  makeCollidable: true
-}).then(({ trainGroup }) => {
-  console.log('Train added:', trainGroup);
-});
+    // Setup camera
+    this.camera = new THREE.PerspectiveCamera(
+      75,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      1000
+    );
 
-  // --- ADD MIRROR HERE ---
-  addMirror({
-    scene: environment.getScene(),
-    THREE: THREE,
-    loader: new GLTFLoader(),
-    url: './models/mirror_a.glb'
-  })
-  .then(({ m }) => {
-    console.log('Mirror added:', m);
-    // if the mirror needs to be collidable:
-    environment.addCollidables([m]);
-  })
-  .catch((err) => {
-    console.error('Error loading mirror:', err);
-  });
-  // --- END ADD MIRROR ---
+    // Create player controller (will be initialized with environment later)
+    this.playerController = new PlayerController(null, this.camera, this.renderer);
 
-})
-.catch((error) => {
-  console.error('Error loading child bedroom:', error);
-});
+    // Create level manager
+    this.levelManager = new LevelManager(this.renderer, this.camera, this.playerController);
 
-// ====================================================//
+    // Setup UI
+    this.setupUI();
 
-// Handle window resize
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
+    // Load initial level
+    this.loadInitialLevel();
 
-// Animation loop
-const clock = new THREE.Clock();
+    // Handle window resize
+    window.addEventListener('resize', () => this.onWindowResize());
 
-function animate() {
-  const delta = clock.getDelta();
-  
-  environment.update(delta);
-  playerController.update(delta);
-  //updateTrain(delta); //aslo for the funny train
+    // Start animation loop
+    this.animate();
+  }
 
-  
-  renderer.render(environment.getScene(), camera);
-  renderer.setAnimationLoop(animate);
+  async loadInitialLevel() {
+    try {
+      await this.levelManager.loadLevel(1); // Start with Level 1 (Garden with trees)
+      console.log('Initial level loaded');
+    } catch (error) {
+      console.error('Error loading initial level:', error);
+    }
+  }
+
+  setupUI() {
+    // Create level selector UI
+    const uiContainer = document.createElement('div');
+    uiContainer.style.position = 'fixed';
+    uiContainer.style.top = '20px';
+    uiContainer.style.left = '20px';
+    uiContainer.style.zIndex = '1000';
+    uiContainer.style.fontFamily = 'Arial, sans-serif';
+
+    const title = document.createElement('h3');
+    title.textContent = 'Select Level:';
+    title.style.color = 'white';
+    title.style.margin = '0 0 10px 0';
+    uiContainer.appendChild(title);
+
+    // Create buttons for each level
+    for (let i = 1; i <= 3; i++) {
+      const button = document.createElement('button');
+      button.textContent = `Level ${i}`;
+      button.style.display = 'block';
+      button.style.margin = '5px 0';
+      button.style.padding = '10px 20px';
+      button.style.cursor = 'pointer';
+      button.style.border = 'none';
+      button.style.borderRadius = '5px';
+      button.style.backgroundColor = '#4CAF50';
+      button.style.color = 'white';
+      button.style.fontSize = '14px';
+
+      button.addEventListener('click', async () => {
+        try {
+          await this.levelManager.loadLevel(i);
+        } catch (error) {
+          console.error(`Error loading level ${i}:`, error);
+        }
+      });
+
+      uiContainer.appendChild(button);
+    }
+
+    // Add controls info
+    const controls = document.createElement('div');
+    controls.style.color = 'white';
+    controls.style.marginTop = '20px';
+    controls.style.fontSize = '12px';
+    controls.innerHTML = `
+      <strong>Controls:</strong><br>
+      WASD - Move<br>
+      Mouse Drag - Rotate Camera<br>
+      Mouse Wheel - Zoom<br>
+      Space - Jump
+    `;
+    uiContainer.appendChild(controls);
+
+    document.body.appendChild(uiContainer);
+  }
+
+  onWindowResize() {
+    this.camera.aspect = window.innerWidth / window.innerHeight;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  animate() {
+    requestAnimationFrame(() => this.animate());
+
+    const delta = this.clock.getDelta();
+    const environment = this.levelManager.getCurrentEnvironment();
+
+    if (environment) {
+      // Update environment
+      environment.update(delta);
+
+      // Update player controller
+      if (this.playerController) {
+        this.playerController.update(delta);
+      }
+
+      // Render scene
+      this.renderer.render(environment.getScene(), this.camera);
+    }
+  }
 }
 
-animate();
+// Start the game when DOM is ready
+window.addEventListener('DOMContentLoaded', () => {
+  new Game();
+});
