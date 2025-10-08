@@ -31,8 +31,8 @@ export async function createChildBedroom({
         // Create group with the same THREE instance (important!)
         const roomGroup = new THREE.Group();
         room.name = 'child_bedroom';
-        room.scale.set(1.5, 1.5, 1.5);
-        room.position.set(0, 0, 0);
+        room.scale.set(5.5, 5.5, 5.5);
+        room.position.set(0, -2, 0);
         room.updateMatrixWorld(true);
 
         // Compute bounding box after scale/position
