@@ -34,7 +34,7 @@ export async function addMirror({
         // Apply scale to the loaded mirror object (not the group) so bounding box accounts for scale
         mirror.scale.set(scale, scale, scale);
         mirror.rotateY(Math.PI); 
-        mirror.position.set(0, 0,17);
+        mirror.position.set(-1, 0,17);
         mirror.updateMatrixWorld(true);
 
         // Add mirror to group

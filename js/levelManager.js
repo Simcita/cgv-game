@@ -87,6 +87,16 @@ export class LevelManager {
 
     // Load bedroom
     const { blocks } = train(this.currentEnvironment.getScene());
+    blocks.position.set(1, 0, 4.0);
+    
+    // Add blocks as collidables
+    const blockCollidables = [];
+    blocks.traverse((child) => {
+      if (child.isMesh && child.visible && child.geometry) {
+        blockCollidables.push(child);
+      }
+    });
+    this.currentEnvironment.addCollidables(blockCollidables);
 
     const { roomGroup, collidables, roomBox } = await createChildBedroom({
       scene: this.currentEnvironment.getScene(),

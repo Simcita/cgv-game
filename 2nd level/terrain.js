@@ -132,8 +132,8 @@ export function train(Scene) {
         cube.castShadow = true;
         blocks.add(cube);
     }
-    blocks.scale.set(0.6, 0.6, 0.6);
-    blocks.position.set(0.6, 0, 1.0);
+    blocks.scale.set(1.8, 2.2, 1.8);
+    blocks.position.set(1, 0, 4.0);
     roomGroup.add(blocks);
 
 
