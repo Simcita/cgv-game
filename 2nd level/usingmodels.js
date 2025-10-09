@@ -28,7 +28,7 @@ export async function createChildBedroom({
           return;
         }
 
-        // Create group with the same THREE instance (important!)
+        // Create group with the same THREE instance
         const roomGroup = new THREE.Group();
         room.name = 'child_bedroom';
         room.scale.set(5.5, 5.5, 5.5);
@@ -47,20 +47,37 @@ export async function createChildBedroom({
         const roomBox = new THREE.Box3().setFromObject(room);
 
         const collidables = [];
+
+        // ✅ Explicitly mark Object_6, Object_10, and Object_13 as collidable
+        const wallNames = ['object_6', 'object_10', 'object_13'];
+
         room.traverse((child) => {
           if (child.isMesh) {
             child.castShadow = true;
             child.receiveShadow = true;
+
             const name = (child.name || '').toLowerCase();
-            if (child.userData?.collidable === true || name.includes('collide') || name.includes('collision')) {
+
+            // Add to collidables if:
+            // - userData says it's collidable
+            // - its name includes collision keywords
+            // - its name is one of the known wall names
+            if (
+              child.userData?.collidable === true ||
+              name.includes('collide') ||
+              name.includes('collision') ||
+              wallNames.includes(name)
+            ) {
               collidables.push(child);
+              // Optional: visually debug collidables by tinting them slightly
+              // child.material = child.material.clone();
+              // child.material.color.set(0xff0000);
             }
           }
         });
 
         roomGroup.add(room);
 
-        // only add to scene if provided
         if (scene && typeof scene.add === 'function') {
           scene.add(roomGroup);
         }
