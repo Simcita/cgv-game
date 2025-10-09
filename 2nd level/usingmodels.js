@@ -48,38 +48,82 @@ export async function createChildBedroom({
 
         const collidables = [];
 
-        // ✅ Explicitly mark Object_6, Object_10, and Object_13 as collidable
-        const wallNames = ['object_6', 'object_10', 'object_13'];
+        // --- explicit Object names you requested to be collidable ---
+        // Store everything in lowercase to make matching case-insensitive.
+        const explicitNamesLower = new Set([
+          // previous walls
+          'Object_6',
+          'Object_10',
+          'Object_13',
+
+          // single Objects you mentioned
+          'Object_28',   // table
+          'Object_30',   // chair
+          'Object_32',   // chair
+          'Object_92',   // single
+          'Object_98',   // wall
+          'Object_181',  // wall
+        ].map(n => n.toLowerCase()));
+
+        // add ranges: 85..90 (crib)
+        for (let i = 85; i <= 90; i++) explicitNamesLower.add(`Object_${i}`.toLowerCase());
+
+        // add range: 173..175 (teddy)
+        for (let i = 173; i <= 175; i++) explicitNamesLower.add(`Object_${i}`.toLowerCase());
+
+        // add range: 186..195 (firetruck)
+        for (let i = 186; i <= 195; i++) explicitNamesLower.add(`Object_${i}`.toLowerCase());
+
+        // debugging helper: record names that were matched (use original names for clarity)
+        const matchedNames = [];
 
         room.traverse((child) => {
           if (child.isMesh) {
+            // ensure unique material instances so highlighting won't leak
+            if (child.material) {
+              child.material = child.material.clone();
+            }
+
             child.castShadow = true;
             child.receiveShadow = true;
 
-            const name = (child.name || '').toLowerCase();
+            // Normalize the node name for matching: lowercase + trim
+            const originalName = child.name || '';
+            const nameLower = originalName.toLowerCase().trim();
 
-            // Add to collidables if:
-            // - userData says it's collidable
-            // - its name includes collision keywords
-            // - its name is one of the known wall names
-            if (
-              child.userData?.collidable === true ||
-              name.includes('collide') ||
-              name.includes('collision') ||
-              wallNames.includes(name)
-            ) {
+            // standard checks: explicit list (case-insensitive), userData flag, or collision keywords
+            const isExplicit = explicitNamesLower.has(nameLower);
+            const isMarked = child.userData?.collidable === true;
+            // keyword matching done in lowercase form so it's resilient to case
+            const hasKeyword = nameLower.includes('collide') ||
+                               nameLower.includes('collision') ||
+                               nameLower.includes('wall') ||
+                               nameLower.includes('crib') ||
+                               nameLower.includes('chair') ||
+                               nameLower.includes('table') ||
+                               nameLower.includes('teddy') ||
+                               nameLower.includes('truck') ||
+                               nameLower.includes('firetruck');
+
+            if (isExplicit || isMarked || hasKeyword) {
               collidables.push(child);
-              // Optional: visually debug collidables by tinting them slightly
-              // child.material = child.material.clone();
-              // child.material.color.set(0xff0000);
+              matchedNames.push(originalName || '(unnamed)');
             }
           }
         });
 
+        // Add room into a group and to scene
         roomGroup.add(room);
 
         if (scene && typeof scene.add === 'function') {
           scene.add(roomGroup);
+        }
+
+        // Console feedback so you can verify the exact collidable meshes
+        if (matchedNames.length > 0) {
+          console.log('createChildBedroom: marked collidables:', matchedNames);
+        } else {
+          console.log('createChildBedroom: no collidables found by the rules (check Object names).');
         }
 
         resolve({ roomGroup, room, collidables, roomBox, gltf });

@@ -118,7 +118,7 @@ export class LevelManager {
       player.position.set(
         center.x,                    // Center X (left/right)
         roomBox.min.y + 0.5,        // Floor level + small offset to prevent clipping
-        center.z + 15                     // Center Z (forward/back)
+        center.z + 15                     
       );
     }
 
