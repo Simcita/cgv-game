@@ -4,6 +4,25 @@ export function train(Scene) {
     const roomGroup = new THREE.Group();
     roomGroup.name = 'ChildBedroom';
 
+    // Create the floor with marble texture
+    const textureLoader = new THREE.TextureLoader();
+    const floorTexture = textureLoader.load('./2nd level/Textures/room_floor.webp');
+    floorTexture.wrapS = THREE.RepeatWrapping;
+    floorTexture.wrapT = THREE.RepeatWrapping;
+    floorTexture.repeat.set(4, 4); // Adjust the repeat values to control texture tiling
+    
+    const floorGeometry = new THREE.PlaneGeometry(50, 45); // Adjust size as needed
+    const floorMaterial = new THREE.MeshStandardMaterial({
+        map: floorTexture,
+        roughness: 0.2,
+        metalness: 0.1
+    });
+    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+    floor.rotation.x = -Math.PI / 2; // Rotate to be horizontal
+    floor.position.y = 0; // Place at ground level
+    floor.receiveShadow = true;
+    Scene.add(floor);
+
     /*// --- CONFIG ---
     const roomWidth = 10;   // x
     const roomDepth = 12;   // z
