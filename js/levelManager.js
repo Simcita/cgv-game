@@ -112,8 +112,14 @@ export class LevelManager {
 
     const player = this.currentEnvironment.getPlayer();
     if (player) {
+      // Get the room's center and adjust for room position
       const center = roomBox.getCenter(new THREE.Vector3());
-      player.position.set(center.x, roomBox.min.y + 0.1, center.z);
+      // Place player in the middle of the room, slightly above floor to prevent clipping
+      player.position.set(
+        center.x,                    // Center X (left/right)
+        roomBox.min.y + 0.5,        // Floor level + small offset to prevent clipping
+        center.z + 15                     // Center Z (forward/back)
+      );
     }
 
     this.playerController.cameraDistance = Math.min(
