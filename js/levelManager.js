@@ -95,6 +95,8 @@ export class LevelManager {
       url: './models/stewies_bedroom.glb',
     });
 
+    roomGroup.position.y = -2;
+
     this.currentEnvironment.addCollidables(collidables);
     this.currentEnvironment.setRoomBounds(roomBox);
 
@@ -110,11 +112,21 @@ export class LevelManager {
     );
 
     // Add train
-    await addTrain({
+    const { trainGroup } = await addTrain({
       scene: this.currentEnvironment.getScene(),
       loader: new GLTFLoader(),
       makeCollidable: true
     });
+    
+    // Instead of adding the whole group, add individual mesh collidables
+    const trainCollidables = [];
+    trainGroup.traverse((child) => {
+      // Only add meshes that are visible and have actual geometry
+      if (child.isMesh && child.visible && child.geometry) {
+        trainCollidables.push(child);
+      }
+    });
+    this.currentEnvironment.addCollidables(trainCollidables);
 
     // Add mirror
     const { mirrorGroup } = await addMirror({
@@ -122,7 +134,16 @@ export class LevelManager {
       loader: new GLTFLoader(),
       url: './models/mirror_a.glb'
     });
-    this.currentEnvironment.addCollidables([mirrorGroup]);
+    
+    // Add individual mirror mesh collidables
+    const mirrorCollidables = [];
+    mirrorGroup.traverse((child) => {
+      // Only add meshes that are visible and have actual geometry
+      if (child.isMesh && child.visible && child.geometry) {
+        mirrorCollidables.push(child);
+      }
+    });
+    this.currentEnvironment.addCollidables(mirrorCollidables);
 
     console.log('Level 2 (Bedroom) loaded');
   }

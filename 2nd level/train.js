@@ -7,7 +7,7 @@ export async function addTrain({
   loader = null,
   url = './models/3_december2020_day_7_train_set.glb',
   position = null,
-  scale = 0.01,
+  scale = 0.05,
   makeCollidable = false,
   onProgress = null
 } = {}) {
