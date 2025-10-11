@@ -35,7 +35,7 @@ export async function addTrain({
 
         // Scale & orient the train model itself
         train.scale.set(scale, scale, scale);
-        train.position.set(0, 0, -1);
+        train.position.set(30, 0, 0);
         train.updateMatrixWorld(true);
 
         // Add train to its group

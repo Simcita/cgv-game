@@ -105,7 +105,7 @@ export class LevelManager {
       url: './models/stewies_bedroom.glb',
     });
 
-    roomGroup.position.y = -2;
+    //roomGroup.position.y = -2;
 
     this.currentEnvironment.addCollidables(collidables);
     this.currentEnvironment.setRoomBounds(roomBox);
