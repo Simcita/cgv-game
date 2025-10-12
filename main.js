@@ -1,7 +1,7 @@
 // main.js
-import * as THREE from 'three';
-import { PlayerController } from './js/playerController.js';
-import { LevelManager } from './js/levelManager.js';
+import * as THREE from "three";
+import { PlayerController } from "./js/playerController.js";
+import { LevelManager } from "./js/levelManager.js";
 
 class Game {
   constructor() {
@@ -10,7 +10,7 @@ class Game {
     this.renderer = null;
     this.playerController = null;
     this.levelManager = null;
-    
+
     this.init();
   }
 
@@ -31,10 +31,18 @@ class Game {
     );
 
     // Create player controller (will be initialized with environment later)
-    this.playerController = new PlayerController(null, this.camera, this.renderer);
+    this.playerController = new PlayerController(
+      null,
+      this.camera,
+      this.renderer
+    );
 
     // Create level manager
-    this.levelManager = new LevelManager(this.renderer, this.camera, this.playerController);
+    this.levelManager = new LevelManager(
+      this.renderer,
+      this.camera,
+      this.playerController
+    );
 
     // Setup UI
     this.setupUI();
@@ -43,7 +51,7 @@ class Game {
     this.loadInitialLevel();
 
     // Handle window resize
-    window.addEventListener('resize', () => this.onWindowResize());
+    window.addEventListener("resize", () => this.onWindowResize());
 
     // Start animation loop
     this.animate();
@@ -52,42 +60,42 @@ class Game {
   async loadInitialLevel() {
     try {
       await this.levelManager.loadLevel(1); // Start with Level 1 (Garden with trees)
-      console.log('Initial level loaded');
+      console.log("Initial level loaded");
     } catch (error) {
-      console.error('Error loading initial level:', error);
+      console.error("Error loading initial level:", error);
     }
   }
 
   setupUI() {
     // Create level selector UI
-    const uiContainer = document.createElement('div');
-    uiContainer.style.position = 'fixed';
-    uiContainer.style.top = '20px';
-    uiContainer.style.left = '20px';
-    uiContainer.style.zIndex = '1000';
-    uiContainer.style.fontFamily = 'Arial, sans-serif';
+    const uiContainer = document.createElement("div");
+    uiContainer.style.position = "fixed";
+    uiContainer.style.top = "20px";
+    uiContainer.style.left = "20px";
+    uiContainer.style.zIndex = "1000";
+    uiContainer.style.fontFamily = "Arial, sans-serif";
 
-    const title = document.createElement('h3');
-    title.textContent = 'Select Level:';
-    title.style.color = 'white';
-    title.style.margin = '0 0 10px 0';
+    const title = document.createElement("h3");
+    title.textContent = "Select Level:";
+    title.style.color = "white";
+    title.style.margin = "0 0 10px 0";
     uiContainer.appendChild(title);
 
     // Create buttons for each level
     for (let i = 1; i <= 3; i++) {
-      const button = document.createElement('button');
+      const button = document.createElement("button");
       button.textContent = `Level ${i}`;
-      button.style.display = 'block';
-      button.style.margin = '5px 0';
-      button.style.padding = '10px 20px';
-      button.style.cursor = 'pointer';
-      button.style.border = 'none';
-      button.style.borderRadius = '5px';
-      button.style.backgroundColor = '#4CAF50';
-      button.style.color = 'white';
-      button.style.fontSize = '14px';
+      button.style.display = "block";
+      button.style.margin = "5px 0";
+      button.style.padding = "10px 20px";
+      button.style.cursor = "pointer";
+      button.style.border = "none";
+      button.style.borderRadius = "5px";
+      button.style.backgroundColor = "#4CAF50";
+      button.style.color = "white";
+      button.style.fontSize = "14px";
 
-      button.addEventListener('click', async () => {
+      button.addEventListener("click", async () => {
         try {
           await this.levelManager.loadLevel(i);
         } catch (error) {
@@ -99,10 +107,10 @@ class Game {
     }
 
     // Add controls info
-    const controls = document.createElement('div');
-    controls.style.color = 'white';
-    controls.style.marginTop = '20px';
-    controls.style.fontSize = '12px';
+    const controls = document.createElement("div");
+    controls.style.color = "white";
+    controls.style.marginTop = "20px";
+    controls.style.fontSize = "12px";
     controls.innerHTML = `
       <strong>Controls:</strong><br>
       WASD - Move<br>
@@ -143,6 +151,6 @@ class Game {
 }
 
 // Start the game when DOM is ready
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener("DOMContentLoaded", () => {
   new Game();
 });
