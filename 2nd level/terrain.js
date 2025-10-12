@@ -1,29 +1,29 @@
-import * as THREE from 'three';
+import * as THREE from "three";
 
 export function train(Scene) {
-    const roomGroup = new THREE.Group();
-    roomGroup.name = 'ChildBedroom';
+  const roomGroup = new THREE.Group();
+  roomGroup.name = "ChildBedroom";
 
-    // Create the floor with marble texture
-    const textureLoader = new THREE.TextureLoader();
-    const floorTexture = textureLoader.load('./2nd level/Textures/room_floor.webp');
-    floorTexture.wrapS = THREE.RepeatWrapping;
-    floorTexture.wrapT = THREE.RepeatWrapping;
-    floorTexture.repeat.set(4, 4); // Adjust the repeat values to control texture tiling
-    
-    const floorGeometry = new THREE.PlaneGeometry(50, 45); // Adjust size as needed
-    const floorMaterial = new THREE.MeshStandardMaterial({
-        map: floorTexture,
-        roughness: 0.2,
-        metalness: 0.1
-    });
-    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-    floor.rotation.x = -Math.PI / 2; // Rotate to be horizontal
-    floor.position.y = 0; // Place at ground level
-    floor.receiveShadow = true;
-    Scene.add(floor);
+  // Create the floor with marble texture
+  const textureLoader = new THREE.TextureLoader();
+  const floorTexture = textureLoader.load("./2nd level/Textures/Could be.webp");
+  floorTexture.wrapS = THREE.RepeatWrapping;
+  floorTexture.wrapT = THREE.RepeatWrapping;
+  floorTexture.repeat.set(10, 10); // Adjust the repeat values to control texture tiling
 
-    /*// --- CONFIG ---
+  const floorGeometry = new THREE.PlaneGeometry(100, 100); // Adjust size as needed
+  const floorMaterial = new THREE.MeshStandardMaterial({
+    map: floorTexture,
+    roughness: 0.2,
+    metalness: 0.1,
+  });
+  const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+  floor.rotation.x = -Math.PI / 2; // Rotate to be horizontal
+  floor.position.y = 0; // Place at ground level
+  floor.receiveShadow = true;
+  Scene.add(floor);
+
+  /*// --- CONFIG ---
     const roomWidth = 10;   // x
     const roomDepth = 12;   // z
     const roomHeight = 3;   // y
@@ -138,29 +138,34 @@ export function train(Scene) {
     roomGroup.add(lampLight);
     */
 
-    // --- TOY BLOCKS (scattered colorful cubes) ---
-    const blockColors = [0xff6b6b, 0xffb86b, 0xfff77a, 0x8bd3dd, 0x9b8cff];
-    const blocks = new THREE.Group();
-    for (let i = 0; i < 12; i++) {
-        const size = 0.18 + Math.random() * 0.12;
-        const g = new THREE.BoxGeometry(size, size, size);
-        const m = new THREE.MeshStandardMaterial({ color: blockColors[i % blockColors.length] });
-        const cube = new THREE.Mesh(g, m);
-        cube.position.set((Math.random() - 0.5) * 3.5, size / 2, (Math.random() - 0.2) * 3.5);
-        cube.rotation.y = Math.random() * Math.PI;
-        cube.castShadow = true;
-        blocks.add(cube);
-    }
-    blocks.scale.set(1.8, 2.2, 1.8);
-    blocks.position.set(1, 0, 4.0);
-    roomGroup.add(blocks);
+  // --- TOY BLOCKS (scattered colorful cubes) ---
+  const blockColors = [0xff6b6b, 0xffb86b, 0xfff77a, 0x8bd3dd, 0x9b8cff];
+  const blocks = new THREE.Group();
+  for (let i = 0; i < 12; i++) {
+    const size = 0.18 + Math.random() * 0.12;
+    const g = new THREE.BoxGeometry(size, size, size);
+    const m = new THREE.MeshStandardMaterial({
+      color: blockColors[i % blockColors.length],
+    });
+    const cube = new THREE.Mesh(g, m);
+    cube.position.set(
+      (Math.random() - 0.5) * 3.5,
+      size / 2,
+      (Math.random() - 0.2) * 3.5
+    );
+    cube.rotation.y = Math.random() * Math.PI;
+    cube.castShadow = true;
+    blocks.add(cube);
+  }
+  blocks.scale.set(1.8, 2.2, 1.8);
+  blocks.position.set(17, 0, -24);
+  roomGroup.add(blocks);
 
+  // --- AMBIENT LIGHT ---
+  const ambient = new THREE.HemisphereLight(0xffffff, 0x444444, 0.5);
+  roomGroup.add(ambient);
 
-    // --- AMBIENT LIGHT ---
-    const ambient = new THREE.HemisphereLight(0xffffff, 0x444444, 0.5);
-    roomGroup.add(ambient);
-
-    /*
+  /*
     // --- TRAIN SET (beside the bed) ---
     // Simple circular track + 3-car train. Expose updateTrain(delta) for animation.
     const trainGroup = new THREE.Group();
@@ -267,13 +272,13 @@ export function train(Scene) {
     });
     */
 
-    // Final position: put the room so that floor y=0 in world space
-    roomGroup.position.y = 0;
+  // Final position: put the room so that floor y=0 in world space
+  roomGroup.position.y = 0;
 
-    Scene.add(blocks);  //code to add blocks to the scene
+  Scene.add(blocks); //code to add blocks to the scene
 
-    //Scene.add(roomGroup);
+  //Scene.add(roomGroup);
 
-    // Return useful refs so caller can tweak / add physics and animate the train
-    return { roomGroup, blocks};
+  // Return useful refs so caller can tweak / add physics and animate the train
+  return { roomGroup, blocks };
 }

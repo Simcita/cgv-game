@@ -1,6 +1,6 @@
 // environment.js
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 export class Environment {
   constructor() {
@@ -51,13 +51,13 @@ export class Environment {
     return new Promise((resolve, reject) => {
       const loader = new GLTFLoader();
       loader.load(
-        './models/AJ.glb',
+        "./models/AJ.glb",
         (gltf) => {
           this.player = gltf.scene;
           this.player.scale.set(1, 1, 1);
           // We'll set the player position later (after room loads) if needed.
           this.player.position.set(0, 0, 0);
-          this.player.name = 'player';
+          this.player.name = "player";
           this.scene.add(this.player);
 
           // Animation mixer

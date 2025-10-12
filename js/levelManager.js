@@ -1,14 +1,14 @@
 // js/levelManager.js
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { GardenScene } from '../1st level/gardenScene.js';
-import { placeModels } from '../1st level/modelPlacer.js';
-import { Environment } from './environment.js';
-import { Environment as ClocktowerEnv } from './level 3/clocktower.js';
-import { createChildBedroom } from '../2nd level/usingmodels.js';
-import { addMirror } from '../2nd level/mirror.js';
-import { addTrain } from '../2nd level/train.js';
-import { train } from '../2nd level/terrain.js';
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { GardenScene } from "../1st level/gardenScene.js";
+import { placeModels } from "../1st level/modelPlacer.js";
+import { Environment } from "./environment.js";
+import { Environment as ClocktowerEnv } from "./level 3/clocktower.js";
+import { createChildBedroom } from "../2nd level/usingmodels.js";
+import { addMirror } from "../2nd level/mirror.js";
+import { addTrain } from "../2nd level/train.js";
+import { train } from "../2nd level/terrain.js";
 
 export class LevelManager {
   constructor(renderer, camera, playerController) {
@@ -18,28 +18,28 @@ export class LevelManager {
     this.currentLevel = null;
     this.currentEnvironment = null;
     this.levels = {
-      1: 'Garden (Level 1)',
-      2: 'Bedroom (Level 2)',
-      3: 'Clocktower (Level 3)'
+      1: "Garden (Level 1)",
+      2: "Bedroom (Level 2)",
+      3: "Clocktower (Level 3)",
     };
   }
 
   async loadLevel(levelNumber) {
     console.log(`Loading level ${levelNumber}...`);
-    
+
     // Clean up current level
     if (this.currentEnvironment) {
       const scene = this.currentEnvironment.getScene();
       if (scene) {
         // Remove all objects from scene
-        while(scene.children.length > 0) { 
-          scene.remove(scene.children[0]); 
+        while (scene.children.length > 0) {
+          scene.remove(scene.children[0]);
         }
       }
     }
 
     // Create new environment based on level
-    switch(levelNumber) {
+    switch (levelNumber) {
       case 1:
         await this.loadLevel1();
         break;
@@ -50,7 +50,7 @@ export class LevelManager {
         await this.loadLevel3();
         break;
       default:
-        console.error('Invalid level number');
+        console.error("Invalid level number");
         return;
     }
 
@@ -72,8 +72,8 @@ export class LevelManager {
 
     // Reset camera
     this.playerController.cameraDistance = 10;
-    
-    console.log('Level 1 (Garden) loaded');
+
+    console.log("Level 1 (Garden) loaded");
   }
 
   async loadLevel2() {
@@ -87,8 +87,8 @@ export class LevelManager {
 
     // Load bedroom
     const { blocks } = train(this.currentEnvironment.getScene());
-    blocks.position.set(1, 0, 4.0);
-    
+    //blocks.position.set(1, 0, 4.0);
+
     // Add blocks as collidables
     const blockCollidables = [];
     blocks.traverse((child) => {
@@ -102,10 +102,8 @@ export class LevelManager {
       scene: this.currentEnvironment.getScene(),
       THREE: THREE,
       loader: new GLTFLoader(),
-      url: './models/stewies_bedroom.glb',
+      url: "./models/Stewie.glb",
     });
-
-    //roomGroup.position.y = -2;
 
     this.currentEnvironment.addCollidables(collidables);
     this.currentEnvironment.setRoomBounds(roomBox);
@@ -116,24 +114,24 @@ export class LevelManager {
       const center = roomBox.getCenter(new THREE.Vector3());
       // Place player in the middle of the room, slightly above floor to prevent clipping
       player.position.set(
-        center.x,                    // Center X (left/right)
-        roomBox.min.y + 0.5,        // Floor level + small offset to prevent clipping
-        center.z + 15                     
+        center.x, // Center X (left/right)
+        roomBox.min.y + 0.5, // Floor level + small offset to prevent clipping
+        center.z + 15
       );
     }
 
     this.playerController.cameraDistance = Math.min(
       this.playerController.cameraDistance,
-      Math.max(3, (roomBox.getSize(new THREE.Vector3()).length() * 0.08))
+      Math.max(3, roomBox.getSize(new THREE.Vector3()).length() * 0.08)
     );
 
     // Add train
     const { trainGroup } = await addTrain({
       scene: this.currentEnvironment.getScene(),
       loader: new GLTFLoader(),
-      makeCollidable: true
+      makeCollidable: true,
     });
-    
+
     // Instead of adding the whole group, add individual mesh collidables
     const trainCollidables = [];
     trainGroup.traverse((child) => {
@@ -148,9 +146,9 @@ export class LevelManager {
     const { mirrorGroup } = await addMirror({
       scene: this.currentEnvironment.getScene(),
       loader: new GLTFLoader(),
-      url: './models/mirror_a.glb'
+      url: "./models/mirror_a.glb",
     });
-    
+
     // Add individual mirror mesh collidables
     const mirrorCollidables = [];
     mirrorGroup.traverse((child) => {
@@ -161,7 +159,7 @@ export class LevelManager {
     });
     this.currentEnvironment.addCollidables(mirrorCollidables);
 
-    console.log('Level 2 (Bedroom) loaded');
+    console.log("Level 2 (Bedroom) loaded");
   }
 
   async loadLevel3() {
@@ -176,7 +174,7 @@ export class LevelManager {
     // Reset camera
     this.playerController.cameraDistance = 10;
 
-    console.log('Level 3 (Clocktower) loaded');
+    console.log("Level 3 (Clocktower) loaded");
   }
 
   getCurrentEnvironment() {
