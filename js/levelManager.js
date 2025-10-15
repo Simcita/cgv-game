@@ -8,7 +8,7 @@ import { Environment as ClocktowerEnv } from "./level 3/clocktower.js";
 import { createChildBedroom } from "../2nd level/usingmodels.js";
 import { addMirror } from "../2nd level/mirror.js";
 import { addTrain } from "../2nd level/train.js";
-import { train } from "../2nd level/terrain.js";
+import { train, createWall } from "../2nd level/terrain.js";
 
 export class LevelManager {
   constructor(renderer, camera, playerController) {
@@ -158,6 +158,23 @@ export class LevelManager {
       }
     });
     this.currentEnvironment.addCollidables(mirrorCollidables);
+
+    // Add fourth wall near the mirror (sky blue)
+    // Mirror coordinates provided: (20, 0, 5)
+    // Use a wall of width 6, height 3, depth 0.2; set y to height/2
+    //const wallColor = new THREE.Color(0x99c2dd); // light blue
+    const wallNearMirror = createWall(
+    32,
+    35,
+    0.2,
+    20,
+    1.5,
+    6.5,
+    null,
+    "../2nd level/Textures/OIP.webp"
+);
+    this.currentEnvironment.getScene().add(wallNearMirror);
+    this.currentEnvironment.addCollidables([wallNearMirror]);
 
     console.log("Level 2 (Bedroom) loaded");
   }

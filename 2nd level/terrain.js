@@ -1,5 +1,29 @@
 import * as THREE from "three";
 
+// Utility to create a wall box you can position anywhere (near the mirror, etc.)
+export function createWall(width, height, depth, x, y, z, paint, path) {
+  const wallgeometry = new THREE.BoxGeometry(width, height, depth);
+  const materialOptions = {};
+
+  if (path) {
+    const texture = new THREE.TextureLoader().load(path);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(4, 4);
+    texture.needsUpdate = true;
+    materialOptions.map = texture;
+  } else if (paint) {
+    materialOptions.color = paint;
+  }
+
+  const wallmaterial = new THREE.MeshPhongMaterial(materialOptions);
+  const wall = new THREE.Mesh(wallgeometry, wallmaterial);
+  wall.position.set(x, y, z);
+  wall.castShadow = true;
+  wall.receiveShadow = true;
+  return wall;
+}
+
 export function train(Scene) {
   const roomGroup = new THREE.Group();
   roomGroup.name = "ChildBedroom";
