@@ -284,45 +284,83 @@ export class PlayerController {
       );
       const right = new THREE.Vector3(forward.z, 0, -forward.x);
 
-      // FIX: Different movement handling for first-person vs third-person
-    if (this.firstPerson) {
-      // First-person: use inverted directions (like original code)
-      movement.addScaledVector(forward, -move.z);
-      movement.addScaledVector(right, -move.x);
-    } else {
-      // Third-person: use direct directions (the fix we applied earlier)
-      movement.addScaledVector(forward, move.z);
-      movement.addScaledVector(right, move.x);
-    }
+      // Different movement handling for first-person vs third-person
+      if (this.firstPerson) {
+        movement.addScaledVector(forward, -move.z);
+        movement.addScaledVector(right, -move.x);
+      } else {
+        movement.addScaledVector(forward, move.z);
+        movement.addScaledVector(right, move.x);
+      }
 
       // apply speed and delta
       movement.setY(0);
       movement.normalize().multiplyScalar(speed * delta);
-      player.position.add(movement);
-    }
 
-    // Collision / ground detection
-    const collidables = this.environment.getCollidables();
-    const PAD = 0.5;
-    const STEP_HEIGHT = 0.5;
+      // Lateral collision resolution (AABB, axis-separated)
+      const collidables = this.environment.getCollidables();
 
-    let groundY = -Infinity;
-    for (const obj of collidables) {
-      const box = new THREE.Box3().setFromObject(obj);
-      const px = player.position.x;
-      const pz = player.position.z;
+      const playerBoxAt = (pos) => new THREE.Box3(
+        new THREE.Vector3(
+          pos.x - this.PLAYER_HALF_WIDTH,
+          pos.y,
+          pos.z - this.PLAYER_HALF_WIDTH
+        ),
+        new THREE.Vector3(
+          pos.x + this.PLAYER_HALF_WIDTH,
+          pos.y + this.PLAYER_HEIGHT,
+          pos.z + this.PLAYER_HALF_WIDTH
+        )
+      );
 
-      if (
-        px > box.min.x - PAD &&
-        px < box.max.x + PAD &&
-        pz > box.min.z - PAD &&
-        pz < box.max.z + PAD
-      ) {
-        groundY = Math.max(groundY, box.max.y);
+      // Try X move
+      if (movement.x !== 0) {
+        const testPosX = new THREE.Vector3(player.position.x + movement.x, player.position.y, player.position.z);
+        const testBoxX = playerBoxAt(testPosX);
+        let hitX = false;
+        for (const obj of collidables) {
+          const box = new THREE.Box3().setFromObject(obj);
+          if (testBoxX.intersectsBox(box)) { hitX = true; break; }
+        }
+        if (!hitX) {
+          player.position.x += movement.x;
+        }
+      }
+
+      // Try Z move
+      if (movement.z !== 0) {
+        const testPosZ = new THREE.Vector3(player.position.x, player.position.y, player.position.z + movement.z);
+        const testBoxZ = playerBoxAt(testPosZ);
+        let hitZ = false;
+        for (const obj of collidables) {
+          const box = new THREE.Box3().setFromObject(obj);
+          if (testBoxZ.intersectsBox(box)) { hitZ = true; break; }
+        }
+        if (!hitZ) {
+          player.position.z += movement.z;
+        }
       }
     }
 
-    if (groundY === -Infinity) groundY = 0; // default ground if none found
+    // Ground detection: only consider surfaces below feet
+    const collidables = this.environment.getCollidables();
+    const PAD = 0.5;
+    let groundY = -Infinity;
+    const feetY = player.position.y; // bottom of capsule
+    for (const obj of collidables) {
+      const box = new THREE.Box3().setFromObject(obj);
+      const withinXZ =
+        player.position.x > box.min.x - PAD &&
+        player.position.x < box.max.x + PAD &&
+        player.position.z > box.min.z - PAD &&
+        player.position.z < box.max.z + PAD;
+      if (!withinXZ) continue;
+      // Only treat as ground if the top of the object is at or below feet
+      if (box.max.y <= feetY + 0.001) {
+        groundY = Math.max(groundY, box.max.y);
+      }
+    }
+    if (groundY === -Infinity) groundY = 0;
 
     // Room bounds collision
     const roomBox = this.environment.getRoomBounds();
@@ -332,43 +370,7 @@ export class PlayerController {
       player.position.z = Math.max(roomBox.min.z + margin, Math.min(roomBox.max.z - margin, player.position.z));
     }
 
-    // Object collision detection (simple AABB with player capsule approximation)
-    let blocked = false;
-    let maxStepUpY = -Infinity;
-
-    for (const obj of collidables) {
-      const box = new THREE.Box3().setFromObject(obj);
-      const playerBox = new THREE.Box3(
-        new THREE.Vector3(
-          player.position.x - this.PLAYER_HALF_WIDTH,
-          player.position.y,
-          player.position.z - this.PLAYER_HALF_WIDTH
-        ),
-        new THREE.Vector3(
-          player.position.x + this.PLAYER_HALF_WIDTH,
-          player.position.y + this.PLAYER_HEIGHT,
-          player.position.z + this.PLAYER_HALF_WIDTH
-        )
-      );
-
-      if (box.max.y <= player.position.y + 0.01) continue;
-      if (playerBox.intersectsBox(box)) {
-        const objectTop = box.max.y;
-        if (objectTop - player.position.y > 0 && objectTop - player.position.y <= STEP_HEIGHT) {
-          maxStepUpY = Math.max(maxStepUpY, objectTop);
-        } else {
-          blocked = true;
-          break;
-        }
-      }
-    }
-
-    // Handle step-up if not blocked
-    if (!blocked && maxStepUpY > -Infinity) {
-      player.position.y = maxStepUpY;
-      this.velocityY = 0;
-      this.onGround = true;
-    }
+    // Remove step-up snapping: we want to bump into objects, not climb them
 
     // Apply gravity
     this.velocityY -= 20 * delta;
