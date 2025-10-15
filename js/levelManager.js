@@ -159,20 +159,18 @@ export class LevelManager {
     });
     this.currentEnvironment.addCollidables(mirrorCollidables);
 
-    // Add fourth wall near the mirror (sky blue)
-    // Mirror coordinates provided: (20, 0, 5)
-    // Use a wall of width 6, height 3, depth 0.2; set y to height/2
-    //const wallColor = new THREE.Color(0x99c2dd); // light blue
+    // Add fourth wall
+    const wallColor = new THREE.Color(0x6cceff);
     const wallNearMirror = createWall(
-    32,
-    35,
-    0.2,
-    20,
-    1.5,
-    6.5,
-    null,
-    "../2nd level/Textures/OIP.webp"
-);
+      32,
+      35,
+      0.2,
+      20,
+      1.5,
+      6.5,
+      null,
+      "2nd level/Textures/20251015_2213_Blue Solar System Texture_simple_compose_01k7mr2ssafgj912vz5pqzw3kd.png"
+    );
     this.currentEnvironment.getScene().add(wallNearMirror);
     this.currentEnvironment.addCollidables([wallNearMirror]);
 
