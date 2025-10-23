@@ -40,7 +40,33 @@ export class Environment {
     this.specialBolt = null;
     this.checkPlatformTrigger = false;
     
+    // Smooth bump + ragdoll support
+    this.playerVelocity = new THREE.Vector3();
+    this.bumpDamping = 6;
+    this.bumpMaxSpeed = 12;
+    this._bumpCooldown = 0;
+    this._gravity = new THREE.Vector3(0, -9.81, 0);
+    // Optional physics for ragdoll via cannon-es (loaded dynamically)
+    this.cannon = { CANNON: null, world: null };
+    this.ragdoll = null; // { bodies: CANNON.Body[], visuals: THREE.Mesh[] }
+
+    // Track extra colliders
+    this.poles = [];
+    this.bolts = [];
+    this.beams = [];
+    this.pipes = [];
+    this.nuts = [];
+
+    // Grounding/stepping
+    this.playerVelY = 0;
+    this.grounded = false;
+    this.groundObject = null; // null = floor, or a platform mesh
+    this.stepHeight = 0.7;    // max height we auto-step up
+    this.playerRadius = 0.5;  // used for horizontal bounds checks
+
     this.init();
+    // Attempt to load cannon-es in the background for ragdoll support
+    this.initPhysics().catch(() => {/* optional */});
   }
 
   init() {
@@ -154,6 +180,7 @@ export class Environment {
       pillar.position.set(pos[0], wallHeight / 2, pos[2]);
       this.scene.add(pillar);
       this.collidables.push(pillar);
+      this.poles.push(pillar);
     });
   }
 
@@ -168,6 +195,8 @@ export class Environment {
     const geo = new THREE.ExtrudeGeometry(shape,{ depth:1.2, bevelEnabled:false });
     const mesh = new THREE.Mesh(geo, mat); mesh.rotation.y=Math.PI/4; mesh.position.set(0, -2, 0);
     this.scene.add(mesh); this.collidables.push(mesh); this.gear=mesh;
+    // Save exact collision dimensions (radial in XY, thickness along Z)
+    this.gearCollision = { radius: 6, halfDepth: 1.2 / 2, playerRadius: 0.5 };
   }
 
   createRisingPlatforms() {
@@ -377,19 +406,23 @@ export class Environment {
     const beam1 = new THREE.Mesh(new THREE.BoxGeometry(this.roomSize - 10, 1, 1), beamMat);
     beam1.position.set(0, 25, 0);
     this.scene.add(beam1);
+    this.beams.push(beam1);
     
     const beam2 = new THREE.Mesh(new THREE.BoxGeometry(1, 1, this.roomSize - 10), beamMat);
     beam2.position.set(0, 25, 0);
     this.scene.add(beam2);
+    this.beams.push(beam2);
     
     // Lower level beams
     const beam3 = new THREE.Mesh(new THREE.BoxGeometry(this.roomSize - 20, 0.8, 0.8), beamMat);
     beam3.position.set(0, 15, 0);
     this.scene.add(beam3);
+    this.beams.push(beam3);
     
     const beam4 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, this.roomSize - 20), beamMat);
     beam4.position.set(0, 15, 0);
     this.scene.add(beam4);
+    this.beams.push(beam4);
     
     // Diagonal support beams from corners to center
     const createDiagonalBeam = (x, z) => {
@@ -403,6 +436,7 @@ export class Environment {
       beam.rotation.x = angleX;
       
       this.scene.add(beam);
+      this.beams.push(beam);
     };
     
     createDiagonalBeam(30, 30);
@@ -419,6 +453,7 @@ export class Environment {
       const vBeam = new THREE.Mesh(new THREE.BoxGeometry(0.8, 30, 0.8), beamMat);
       vBeam.position.set(pos[0], 15, pos[2]);
       this.scene.add(vBeam);
+      this.poles.push(vBeam);
     });
     
     // Add catwalks/platforms around the upper area
@@ -630,6 +665,7 @@ export class Environment {
     specialBolt.rotation.y = angle;
     this.scene.add(specialBolt);
     this.specialBolt = specialBolt;
+    this.bolts.push(specialBolt);
     
     // Add a glowing particle effect above the special bolt
     const glowGeometry = new THREE.SphereGeometry(0.3, 16, 16);
@@ -655,6 +691,7 @@ export class Environment {
       nut.rotation.x = -Math.PI / 2;
       nut.rotation.z = Math.random() * Math.PI * 2;
       this.scene.add(nut);
+      this.nuts.push(nut);
     }
     
     // Create regular bolts
@@ -678,6 +715,7 @@ export class Environment {
       bolt.rotation.x = Math.PI / 2;
       bolt.rotation.z = Math.random() * Math.PI * 2;
       this.scene.add(bolt);
+      this.bolts.push(bolt);
     }
     
     // Add some nuts and bolts on catwalks
@@ -790,6 +828,30 @@ export class Environment {
       );
       pipe.position.set(x, 12.5, z);
       this.scene.add(pipe);
+      this.pipes.push(pipe);
+    }
+  }
+
+  // Optional: dynamically load cannon-es for ragdoll
+  async initPhysics() {
+    if (this.cannon.world) return;
+    try {
+      const mod = await import('cannon-es');
+      const CANNON = mod.default || mod;
+      const world = new CANNON.World({
+        gravity: new CANNON.Vec3(0, -9.82, 0),
+        allowSleep: true
+      });
+      // Ground plane at y=0 (matches your floor plane)
+      const groundMat = new CANNON.Material('ground');
+      const groundShape = new CANNON.Plane();
+      const groundBody = new CANNON.Body({ mass: 0, material: groundMat });
+      groundBody.addShape(groundShape);
+      groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+      world.addBody(groundBody);
+      this.cannon = { CANNON, world };
+    } catch (e) {
+      // cannon-es not available; ragdoll will be skipped
     }
   }
 
@@ -805,8 +867,33 @@ export class Environment {
   update(delta){
     if(!this.player) return;
     if(this.mixer) this.mixer.update(delta);
+    // If ragdoll active, step its physics and sync only visuals
+    if (this.ragdoll) {
+      this.stepCannon(delta);
+    } else {
+      // Vertical integration first (gravity)
+      this.playerVelY += -9.81 * delta;
+      this.player.position.y += this.playerVelY * delta;
+      this.resolveGroundingAndPlatforms();
+
+      // Apply smooth bump movement
+      if (this.playerVelocity.lengthSq() > 0) {
+        const max = this.bumpMaxSpeed;
+        if (this.playerVelocity.length() > max) this.playerVelocity.setLength(max);
+        this.player.position.addScaledVector(this.playerVelocity, delta);
+        // Damping
+        const damp = Math.max(0, 1 - this.bumpDamping * delta);
+        this.playerVelocity.multiplyScalar(damp);
+      }
+      // Cooldown timer for bumps
+      if (this._bumpCooldown > 0) this._bumpCooldown -= delta;
+      // Collision checks -> bumps (gear, platforms, walls/floor)
+      this.checkCollisionsAndBumps();
+    }
+
     this.updateGearRotation(delta); 
-    this.updateGearCollision();
+    // Gear bump now handled inside checkCollisionsAndBumps
+
     this.updateClockHands(delta);
     this.checkPlayerOnPlatform();
     
@@ -821,6 +908,11 @@ export class Environment {
       this.platforms.forEach((p, i) => { 
         p.position.y = 0.5 + Math.sin(Date.now() * 0.0005 + i * 1.5) * 4;
       });
+      // Keep player attached if standing on a moving platform
+      if (this.grounded && this.groundObject && this.platforms.includes(this.groundObject)) {
+        const topY = this.groundObject.position.y + 0.25; // half of 0.5 height
+        this.player.position.y = topY;
+      }
     }
     
     // Animate central mechanism gears
@@ -871,11 +963,239 @@ export class Environment {
 
   updateGearRotation(delta){ if(this.gear) this.gear.rotation.z+=delta; }
 
-  updateGearCollision(){
-    if(!this.player||!this.gear) return;
-    const pb=new THREE.Box3().setFromCenterAndSize(this.player.position.clone().add(new THREE.Vector3(0,1,0)), new THREE.Vector3(1,2,1));
-    const gb=new THREE.Box3().setFromCenterAndSize(this.gear.position.clone(), new THREE.Vector3(6,1.2,6));
-    if(pb.intersectsBox(gb)){ this.player.position.add(new THREE.Vector3().subVectors(this.player.position,this.gear.position).setY(0).normalize().multiplyScalar(2)); this.player.position.y+=0.3; }
+  // Snap to floor or platforms if within step height, zero vertical velocity when grounded
+  resolveGroundingAndPlatforms() {
+    this.grounded = false;
+    let bestTop = -Infinity;
+    let bestGround = null; // null = floor
+
+    // Floor at y=0
+    const feetY = this.player.position.y;
+    if (feetY <= 0.05 && this.playerVelY <= 0) {
+      bestTop = 0;
+      bestGround = null;
+    }
+
+    // Platforms: pick the highest valid top under/near the player
+    if (this.platforms && this.platforms.length) {
+      for (const p of this.platforms) {
+        const half = { x: 4.0, y: 0.25, z: 4.0 }; // box 8 x 0.5 x 8
+        // Horizontal bounds (expand by player radius)
+        const inX = Math.abs(this.player.position.x - p.position.x) <= (half.x + this.playerRadius);
+        const inZ = Math.abs(this.player.position.z - p.position.z) <= (half.z + this.playerRadius);
+        if (!inX || !inZ) continue;
+        const topY = p.position.y + half.y;
+        // If feet are within stepHeight below top or slightly above it, allow stepping/snap
+        if (feetY >= topY - this.stepHeight && feetY <= topY + 0.08) {
+          if (topY > bestTop) {
+            bestTop = topY;
+            bestGround = p;
+          }
+        }
+      }
+    }
+
+    if (bestTop > -Infinity) {
+      this.player.position.y = bestTop;
+      this.playerVelY = 0;
+      this.grounded = true;
+      this.groundObject = bestGround; // null = floor, otherwise a platform mesh
+    } else {
+      this.groundObject = null;
+    }
+  }
+
+  // Helpers: build player AABB and compute minimal translation to resolve AABB overlap
+  _getPlayerAABB() {
+    const center = this.player.position.clone().add(new THREE.Vector3(0, 1, 0));
+    const half = new THREE.Vector3(0.5, 1.0, 0.5);
+    return new THREE.Box3().setFromCenterAndSize(center, half.clone().multiplyScalar(2));
+  }
+  _aabbSeparation(a, b) {
+    // Returns minimal translation vector to separate AABB a from b (assuming they intersect)
+    const aCenter = a.getCenter(new THREE.Vector3());
+    const bCenter = b.getCenter(new THREE.Vector3());
+    const overlapX = Math.min(a.max.x, b.max.x) - Math.max(a.min.x, b.min.x);
+    const overlapY = Math.min(a.max.y, b.max.y) - Math.max(a.min.y, b.min.y);
+    const overlapZ = Math.min(a.max.z, b.max.z) - Math.max(a.min.z, b.min.z);
+    if (overlapX <= 0 || overlapY <= 0 || overlapZ <= 0) return new THREE.Vector3(); // no overlap
+    // Choose smallest axis to resolve
+    if (overlapX < overlapY && overlapX < overlapZ) {
+      return new THREE.Vector3(aCenter.x > bCenter.x ? overlapX : -overlapX, 0, 0);
+    } else if (overlapY < overlapZ) {
+      return new THREE.Vector3(0, aCenter.y > bCenter.y ? overlapY : -overlapY, 0);
+    } else {
+      return new THREE.Vector3(0, 0, aCenter.z > bCenter.z ? overlapZ : -overlapZ);
+    }
+  }
+
+  // Unified collision + bump handling
+  checkCollisionsAndBumps() {
+    if (!this.player) return;
+    const playerHalf = new THREE.Vector3(0.5, 1.0, 0.5); // approx capsule AABB
+    const pb = this._getPlayerAABB();
+
+    // Bump against gear (use exact mesh dimensions in XY, thickness along Z)
+    if (this.gear && this.gearCollision) {
+      const gc = this.gearCollision;
+      const gpos = this.gear.position;
+      const dx = this.player.position.x - gpos.x;
+      const dy = this.player.position.y - gpos.y;
+      const dz = this.player.position.z - gpos.z;
+      const radial = Math.hypot(dx, dy);
+      const radialOverlap = (gc.radius + gc.playerRadius) - radial;
+      const zOverlap = (gc.halfDepth + playerHalf.z) - Math.abs(dz);
+      if (radialOverlap > 0 && zOverlap > 0 && this._bumpCooldown <= 0) {
+        // Separate along the least-penetration axis (radial vs thickness)
+        if (zOverlap < radialOverlap) {
+          const sep = new THREE.Vector3(0, 0, (dz >= 0 ? zOverlap : -zOverlap));
+          this.player.position.add(sep);
+          this.applyBumpImpulse(new THREE.Vector3(0, 0.5, Math.sign(sep.z) * 2));
+        } else {
+          const n = radial > 1e-4 ? new THREE.Vector3(dx / radial, dy / radial, 0) : new THREE.Vector3(1, 0, 0);
+          const sep = n.multiplyScalar(radialOverlap);
+          this.player.position.add(sep);
+          this.applyBumpImpulse(sep.clone().setLength(6).add(new THREE.Vector3(0, 1.0, 0)));
+        }
+        this._bumpCooldown = 0.18;
+        // Refresh AABB after moving the player
+        pb.copy(this._getPlayerAABB());
+      }
+    }
+
+    // Platforms
+    if (this.platforms && this.platforms.length) {
+      for (const p of this.platforms) {
+        const pbx = new THREE.Box3().setFromObject(p);
+        if (pb.intersectsBox(pbx) && this._bumpCooldown <= 0) {
+          const platformTop = p.position.y + 0.25; // half-height of 0.5
+          // If currently grounded on this platform, don't separate; let grounding/snapping keep us attached
+          if (this.grounded && this.groundObject === p) {
+            continue;
+          }
+          // If player is above top surface and horizontally within platform bounds (+radius), skip separation (top contact)
+          const halfX = 4.0, halfZ = 4.0;
+          const inX = Math.abs(this.player.position.x - p.position.x) <= (halfX + this.playerRadius);
+          const inZ = Math.abs(this.player.position.z - p.position.z) <= (halfZ + this.playerRadius);
+          if (inX && inZ && this.player.position.y >= platformTop - 0.02) {
+            continue;
+          }
+
+          // Resolve minimally with AABB separation, add gentle impulse
+          const sep = this._aabbSeparation(pb, pbx);
+          this.player.position.add(sep);
+          if (sep.lengthSq() > 0.0001) {
+            // Only add small vertical boost if separation is upward (prevent sticking when coming from below)
+            const extraY = sep.y > 0 ? 0.6 : 0;
+            this.applyBumpImpulse(sep.clone().setLength(3).add(new THREE.Vector3(0, extraY, 0)));
+          }
+          this._bumpCooldown = 0.12;
+          pb.copy(this._getPlayerAABB());
+        }
+      }
+    }
+
+    // Poles
+    if (this.poles && this.poles.length) {
+      for (const pole of this.poles) {
+        const bx = new THREE.Box3().setFromObject(pole);
+        if (pb.intersectsBox(bx) && this._bumpCooldown <= 0) {
+          const sep = this._aabbSeparation(pb, bx);
+          this.player.position.add(sep);
+          if (sep.lengthSq() > 0.0001) this.applyBumpImpulse(sep.clone().setLength(4).add(new THREE.Vector3(0, 0.4, 0)));
+          this._bumpCooldown = 0.1;
+          pb.copy(this._getPlayerAABB());
+        }
+      }
+    }
+
+    // Beams
+    if (this.beams && this.beams.length) {
+      for (const b of this.beams) {
+        const bx = new THREE.Box3().setFromObject(b);
+        if (pb.intersectsBox(bx) && this._bumpCooldown <= 0) {
+          const sep = this._aabbSeparation(pb, bx);
+          this.player.position.add(sep);
+          if (sep.lengthSq() > 0.0001) this.applyBumpImpulse(sep.clone().setLength(3.5));
+          this._bumpCooldown = 0.08;
+          pb.copy(this._getPlayerAABB());
+        }
+      }
+    }
+
+    // Pipes (cylindrical vertical poles)
+    if (this.pipes && this.pipes.length) {
+      for (const p of this.pipes) {
+        const bx = new THREE.Box3().setFromObject(p);
+        if (pb.intersectsBox(bx) && this._bumpCooldown <= 0) {
+          const sep = this._aabbSeparation(pb, bx);
+          this.player.position.add(sep);
+          if (sep.lengthSq() > 0.0001) this.applyBumpImpulse(sep.clone().setLength(3.5).add(new THREE.Vector3(0, 0.3, 0)));
+          this._bumpCooldown = 0.08;
+          pb.copy(this._getPlayerAABB());
+        }
+      }
+    }
+
+    // Bolts
+    if (this.bolts && this.bolts.length) {
+      for (const b of this.bolts) {
+        const bx = new THREE.Box3().setFromObject(b);
+        if (pb.intersectsBox(bx) && this._bumpCooldown <= 0) {
+          const sep = this._aabbSeparation(pb, bx);
+          this.player.position.add(sep);
+          if (sep.lengthSq() > 0.0001) this.applyBumpImpulse(sep.clone().setLength(2).add(new THREE.Vector3(0, 0.25, 0)));
+          this._bumpCooldown = 0.06;
+          pb.copy(this._getPlayerAABB());
+        }
+      }
+    }
+
+    // Nuts (tiny floor items), very gentle nudge
+    if (this.nuts && this.nuts.length) {
+      for (const n of this.nuts) {
+        const bx = new THREE.Box3().setFromObject(n);
+        if (pb.intersectsBox(bx) && this._bumpCooldown <= 0) {
+          const sep = this._aabbSeparation(pb, bx);
+          this.player.position.add(sep);
+          if (sep.lengthSq() > 0.0001) this.applyBumpImpulse(sep.clone().setLength(1.2).add(new THREE.Vector3(0, 0.15, 0)));
+          this._bumpCooldown = 0.05;
+          pb.copy(this._getPlayerAABB());
+        }
+      }
+    }
+
+    // Walls
+    const half = this.roomSize / 2 - 1.5;
+    if (Math.abs(this.player.position.x) > half || Math.abs(this.player.position.z) > half) {
+      const dir = new THREE.Vector3(
+        this.player.position.x > 0 ? -1 : 1,
+        0,
+        this.player.position.z > 0 ? -1 : 1
+      ).normalize();
+      this.applyBumpImpulse(dir.multiplyScalar(5));
+      // Keep player inside bounds softly
+      this.player.position.x = THREE.MathUtils.clamp(this.player.position.x, -half, half);
+      this.player.position.z = THREE.MathUtils.clamp(this.player.position.z, -half, half);
+      this._bumpCooldown = 0.1;
+    }
+  }
+
+  applyBumpImpulse(impulse) {
+    // Split bump impulse: horizontal adds to playerVelocity, vertical to playerVelY
+    const horiz = impulse.clone();
+    horiz.y = 0;
+    this.playerVelocity.add(horiz);
+    this.playerVelY += impulse.y;
+    // Optional: callback for camera shake/sfx
+    if (this.onBump) {
+      const strength = THREE.MathUtils.clamp(impulse.length(), 0, 10);
+      this.onBump(strength);
+    }
+    // If impact is strong, switch to ragdoll
+    if (impulse.length() > 7) {
+      this.enableRagdoll(impulse);
+    }
   }
 
   updateClockHands(delta){ 
@@ -981,10 +1301,70 @@ export class Environment {
     this.onGameLost = callback;
   }
 
-  getGameState() {
-    return this.gameState;
+  // Enable a simple ragdoll using cannon-es (if available); otherwise no-op
+  enableRagdoll(initialImpulse = new THREE.Vector3()) {
+    if (!this.cannon.world || this.ragdoll) return;
+    if (!this.player) return;
+    const { CANNON, world } = this.cannon;
+
+    // Hide the main player mesh while ragdoll is active
+    this.player.visible = false;
+
+    const origin = this.player.position.clone().add(new THREE.Vector3(0, 1.1, 0));
+    const bodies = [];
+    const visuals = [];
+    const addBody = (shape, pos, mass, color = 0x8B7355) => {
+      const body = new CANNON.Body({ mass, shape });
+      body.position.set(pos.x, pos.y, pos.z);
+      world.addBody(body);
+      const vis = new THREE.Mesh(
+        shape instanceof CANNON.Sphere ? new THREE.SphereGeometry(shape.radius, 16, 16)
+          : new THREE.BoxGeometry(shape.halfExtents.x*2, shape.halfExtents.y*2, shape.halfExtents.z*2),
+        new THREE.MeshStandardMaterial({ color, metalness: 0.1, roughness: 0.8 })
+      );
+      this.scene.add(vis);
+      bodies.push(body); visuals.push(vis);
+      return body;
+    };
+
+    // Torso (box), head (sphere), legs (boxes); very simple constraints
+    const torso = addBody(new CANNON.Box(new CANNON.Vec3(0.25, 0.5, 0.18)), origin, 5, 0x8B7355);
+    const head = addBody(new CANNON.Sphere(0.22), origin.clone().add(new THREE.Vector3(0, 0.9, 0)), 1, 0xA0826D);
+    const legL = addBody(new CANNON.Box(new CANNON.Vec3(0.15, 0.45, 0.15)), origin.clone().add(new THREE.Vector3(-0.18, -0.9, 0)), 2);
+    const legR = addBody(new CANNON.Box(new CANNON.Vec3(0.15, 0.45, 0.15)), origin.clone().add(new THREE.Vector3(0.18, -0.9, 0)), 2);
+
+    // Constraints (distance constraints for simplicity)
+    world.addConstraint(new CANNON.DistanceConstraint(torso, head, 0.7));
+    world.addConstraint(new CANNON.DistanceConstraint(torso, legL, 1.0));
+    world.addConstraint(new CANNON.DistanceConstraint(torso, legR, 1.0));
+
+    // Apply initial impulse to the torso to reflect the hit
+    torso.velocity.set(initialImpulse.x, Math.max(initialImpulse.y, 0), initialImpulse.z);
+
+    this.ragdoll = { bodies, visuals };
+    if (this.onRagdollStart) this.onRagdollStart();
   }
 
+  stepCannon(delta) {
+    if (!this.cannon.world || !this.ragdoll) return;
+    const { world } = this.cannon;
+    // Fixed-timestep stepping for stability
+    const fixed = 1 / 60;
+    world.step(fixed, delta, 3);
+    // Sync visuals
+    for (let i = 0; i < this.ragdoll.bodies.length; i++) {
+      const b = this.ragdoll.bodies[i];
+      const v = this.ragdoll.visuals[i];
+      v.position.set(b.position.x, b.position.y, b.position.z);
+      v.quaternion.set(b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w);
+    }
+  }
+
+  // Optional callbacks
+  setOnBump(cb) { this.onBump = cb; }
+  setOnRagdollStart(cb) { this.onRagdollStart = cb; }
+
+  getGameState() { return this.gameState; }
   getCollidables(){ return this.collidables; }
   getScene(){ return this.scene; }
   getPlayer(){ return this.player; }
