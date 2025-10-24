@@ -263,17 +263,83 @@ updatePlayer(delta) {
     const forward = new THREE.Vector3(Math.sin(this.cameraAngleX), 0, Math.cos(this.cameraAngleX));
     const right = new THREE.Vector3(forward.z, 0, -forward.x);
 
-    if (this.firstPerson) {
-      movement.addScaledVector(forward, -move.z);
-      movement.addScaledVector(right, -move.x);
-    } else {
-      movement.addScaledVector(forward, move.z);
-      movement.addScaledVector(right, move.x);
+      // Different movement handling for first-person vs third-person
+      if (this.firstPerson) {
+        movement.addScaledVector(forward, -move.z);
+        movement.addScaledVector(right, -move.x);
+      } else {
+        movement.addScaledVector(forward, move.z);
+        movement.addScaledVector(right, move.x);
+      }
+
+      // apply speed and delta
+      movement.setY(0);
+      movement.normalize().multiplyScalar(speed * delta);
+
+      // Lateral collision resolution (AABB, axis-separated)
+      const collidables = this.environment.getCollidables();
+
+      const playerBoxAt = (pos) => new THREE.Box3(
+        new THREE.Vector3(
+          pos.x - this.PLAYER_HALF_WIDTH,
+          pos.y,
+          pos.z - this.PLAYER_HALF_WIDTH
+        ),
+        new THREE.Vector3(
+          pos.x + this.PLAYER_HALF_WIDTH,
+          pos.y + this.PLAYER_HEIGHT,
+          pos.z + this.PLAYER_HALF_WIDTH
+        )
+      );
+
+      // Try X move
+      if (movement.x !== 0) {
+        const testPosX = new THREE.Vector3(player.position.x + movement.x, player.position.y, player.position.z);
+        const testBoxX = playerBoxAt(testPosX);
+        let hitX = false;
+        for (const obj of collidables) {
+          const box = new THREE.Box3().setFromObject(obj);
+          if (testBoxX.intersectsBox(box)) { hitX = true; break; }
+        }
+        if (!hitX) {
+          player.position.x += movement.x;
+        }
+      }
+
+      // Try Z move
+      if (movement.z !== 0) {
+        const testPosZ = new THREE.Vector3(player.position.x, player.position.y, player.position.z + movement.z);
+        const testBoxZ = playerBoxAt(testPosZ);
+        let hitZ = false;
+        for (const obj of collidables) {
+          const box = new THREE.Box3().setFromObject(obj);
+          if (testBoxZ.intersectsBox(box)) { hitZ = true; break; }
+        }
+        if (!hitZ) {
+          player.position.z += movement.z;
+        }
+      }
     }
 
-    movement.setY(0);
-    movement.normalize().multiplyScalar(speed * delta);
-  }
+    // Ground detection: only consider surfaces below feet
+    const collidables = this.environment.getCollidables();
+    const PAD = 0.5;
+    let groundY = -Infinity;
+    const feetY = player.position.y; // bottom of capsule
+    for (const obj of collidables) {
+      const box = new THREE.Box3().setFromObject(obj);
+      const withinXZ =
+        player.position.x > box.min.x - PAD &&
+        player.position.x < box.max.x + PAD &&
+        player.position.z > box.min.z - PAD &&
+        player.position.z < box.max.z + PAD;
+      if (!withinXZ) continue;
+      // Only treat as ground if the top of the object is at or below feet
+      if (box.max.y <= feetY + 0.001) {
+        groundY = Math.max(groundY, box.max.y);
+      }
+    }
+    if (groundY === -Infinity) groundY = 0;
 
   // --- STEP 1: Apply horizontal movement with collision detection ---
   const newPos = new THREE.Vector3(
@@ -307,51 +373,7 @@ updatePlayer(delta) {
     }
   }
 
-  // Apply movement if no collision
-  if (canMove) {
-    player.position.x = newPos.x;
-    player.position.z = newPos.z;
-  }
-
-  // --- STEP 2: Apply gravity and vertical collision ---
-  this.velocityY -= 20 * delta;
-  player.position.y += this.velocityY * delta;
-
-  // Create player box at current position for ground detection
-  const currentPlayerBox = new THREE.Box3(
-    new THREE.Vector3(
-      player.position.x - this.PLAYER_HALF_WIDTH,
-      player.position.y,
-      player.position.z - this.PLAYER_HALF_WIDTH
-    ),
-    new THREE.Vector3(
-      player.position.x + this.PLAYER_HALF_WIDTH,
-      player.position.y + this.PLAYER_HEIGHT,
-      player.position.z + this.PLAYER_HALF_WIDTH
-    )
-  );
-
-  // Find the highest ground surface under the player
-  let highestGround = -Infinity;
-  let isOnGround = false;
-
-  for (const obj of collidables) {
-    const objBox = new THREE.Box3().setFromObject(obj);
-    
-    // Check if player is above this object and close to its top surface
-    const isAboveObject = 
-      currentPlayerBox.min.x < objBox.max.x &&
-      currentPlayerBox.max.x > objBox.min.x &&
-      currentPlayerBox.min.z < objBox.max.z &&
-      currentPlayerBox.max.z > objBox.min.z &&
-      currentPlayerBox.min.y >= objBox.max.y - 0.1 && // Player bottom is near object top
-      currentPlayerBox.min.y <= objBox.max.y + 0.5;   // But not too far above
-
-    if (isAboveObject) {
-      highestGround = Math.max(highestGround, objBox.max.y);
-      isOnGround = true;
-    }
-  }
+    // Remove step-up snapping: we want to bump into objects, not climb them
 
   // Apply ground collision
   if (isOnGround && player.position.y <= highestGround + 0.1) {

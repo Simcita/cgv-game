@@ -26,9 +26,31 @@ export function createWall(width, height, depth, x, y, z, paint, path) {
   return wall;
 }
 
+// Utility to create a wall box you can position anywhere (near the mirror, etc.)
+export function createWall(width, height, depth, x, y, z, paint, path) {
+  const wallgeometry = new THREE.BoxGeometry(width, height, depth);
+  const materialOptions = {};
 
+  if (path) {
+    const texture = new THREE.TextureLoader().load(path);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(1, 1);
+    texture.needsUpdate = true;
+    materialOptions.map = texture;
+  } else if (paint) {
+    materialOptions.color = paint;
+  }
 
-export function train(scene, camera, player, renderer) {
+  const wallmaterial = new THREE.MeshPhongMaterial(materialOptions);
+  const wall = new THREE.Mesh(wallgeometry, wallmaterial);
+  wall.position.set(x, y, z);
+  wall.castShadow = true;
+  wall.receiveShadow = true;
+  return wall;
+}
+
+export function train(Scene) {
   const roomGroup = new THREE.Group();
   roomGroup.name = "ChildBedroom";
 
@@ -49,51 +71,38 @@ export function train(scene, camera, player, renderer) {
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = 0;
   floor.receiveShadow = true;
-  scene.add(floor);
+  Scene.add(floor);
 
-  // --- Toy blocks ---
-  const { blocks, update: updateBlocks } = createInteractiveToyBlocks(
-    scene,
-    camera,
-    player,
-    renderer
-  );
+  // --- TOY BLOCKS (scattered colorful cubes) ---
+  const blockColors = [0xff6b6b, 0xffb86b, 0xfff77a, 0x8bd3dd, 0x9b8cff];
+  const blocks = new THREE.Group();
+  for (let i = 0; i < 12; i++) {
+    const size = 0.18 + Math.random() * 0.12;
+    const g = new THREE.BoxGeometry(size, size, size);
+    const m = new THREE.MeshStandardMaterial({
+      color: blockColors[i % blockColors.length],
+    });
+    const cube = new THREE.Mesh(g, m);
+    cube.position.set(
+      (Math.random() - 0.5) * 3.5,
+      size / 2,
+      (Math.random() - 0.2) * 3.5
+    );
+    cube.rotation.y = Math.random() * Math.PI;
+    cube.castShadow = true;
+    blocks.add(cube);
+  }
+  blocks.scale.set(1.8, 2.2, 1.8);
+  blocks.position.set(17, 0, -24);
+  roomGroup.add(blocks);
 
-  // --- Wall near mirror ---
-  const wallNearMirror = createWall(
-    32, 35, 0.2,
-    20, 35/2, 6.5,
-    null,
-    "2nd level/Textures/room_floor.webp"
-  );
-  scene.add(wallNearMirror);
-
-  // --- Ambient light ---
+  // --- AMBIENT LIGHT ---
   const ambient = new THREE.HemisphereLight(0xffffff, 0x444444, 0.5);
   roomGroup.add(ambient);
-  scene.add(roomGroup);
 
-  // ✅ Wrap all toy blocks in a group so they stay together
-  const blocksGroup = new THREE.Group();
-  blocksGroup.name = "ToyBlocks";
+  // Final position: put the room so that floor y=0 in world space
+  roomGroup.position.y = 0;
 
-  blocks.forEach(block => blocksGroup.add(block));
-  scene.add(blocksGroup);
 
-  // ✅ Return everything cleanly - IMPORTANT: Return individual blocks for collision detection
-  return {
-    roomGroup,
-    blocks: blocks, // Return the individual blocks array, not the group
-    blocksGroup: blocksGroup, // Also return the group if needed for organization
-    wall: wallNearMirror,
-    update: updateBlocks,
-    getAllCollidables: function() {
-      // Return all collidable objects including blocks and walls
-      return [wallNearMirror, ...blocks];
-    }
-  };
+  return { roomGroup, blocks };
 }
-
-
-
-

@@ -8,8 +8,7 @@ import { Environment as ClocktowerEnv } from "./level 3/clocktower.js";
 import { createChildBedroom } from "../2nd level/usingmodels.js";
 import { addMirror } from "../2nd level/mirror.js";
 import { addTrain } from "../2nd level/train.js";
-import { train } from "../2nd level/terrain.js";
-import { createWall } from "../2nd level/terrain.js";
+import { train, createWall } from "../2nd level/terrain.js";
 
 export class LevelManager {
   constructor(renderer, camera, playerController) {
@@ -179,7 +178,22 @@ export class LevelManager {
     });
     this.currentEnvironment.addCollidables(mirrorCollidables);
 
-    console.log("Level 2 (Bedroom) loaded with block collision support");
+    // Add fourth wall
+    const wallColor = new THREE.Color(0x6cceff);
+    const wallNearMirror = createWall(
+      32,
+      35,
+      0.2,
+      20,
+      1.5,
+      6.5,
+      null,
+      "2nd level/Textures/20251015_2213_Blue Solar System Texture_simple_compose_01k7mr2ssafgj912vz5pqzw3kd.png"
+    );
+    this.currentEnvironment.getScene().add(wallNearMirror);
+    this.currentEnvironment.addCollidables([wallNearMirror]);
+
+    console.log("Level 2 (Bedroom) loaded");
   }
 
   async loadLevel3() {
