@@ -1,6 +1,6 @@
 // Use the ES module build from a CDN
 import * as THREE from 'three';
-import { Environment } from './js/environment.js';
+import { Environment } from './3rd level/clocktower.js';
 import { PlayerController } from './js/playerController.js';
 
 // Initialize renderer

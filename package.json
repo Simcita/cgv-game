@@ -18,6 +18,8 @@
   },
   "homepage": "https://github.com/PixeForge/cgv-game#readme",
   "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.19.2",
+    "cannon-es": "^0.20.0",
     "three": "^0.180.0"
   }
 }
