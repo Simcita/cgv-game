@@ -22,6 +22,7 @@ export class LevelManager {
       2: "Bedroom (Level 2)",
       3: "Clocktower (Level 3)",
     };
+    this.level2Blocks = null; // Store reference to blocks for updates
   }
 
   async loadLevel(levelNumber) {
@@ -36,6 +37,7 @@ export class LevelManager {
           scene.remove(scene.children[0]);
         }
       }
+      this.level2Blocks = null; // Clear blocks reference
     }
 
     // Create new environment based on level
@@ -85,19 +87,37 @@ export class LevelManager {
     const gltf = await this.currentEnvironment.loadPlayerModel();
     this.playerController.setupAnimations(gltf);
 
-    // Load bedroom
-    const { blocks } = train(this.currentEnvironment.getScene());
-    //blocks.position.set(1, 0, 4.0);
+    // Load bedroom terrain and get blocks
+    const terrainData = train(
+      this.currentEnvironment.getScene(),
+      this.camera,
+      this.currentEnvironment.getPlayer(),
+      this.renderer
+    );
 
-    // Add blocks as collidables
-    const blockCollidables = [];
-    blocks.traverse((child) => {
-      if (child.isMesh && child.visible && child.geometry) {
-        blockCollidables.push(child);
-      }
-    });
-    this.currentEnvironment.addCollidables(blockCollidables);
+    // Store blocks reference for updates
+    this.level2Blocks = terrainData.blocks;
 
+    // Add blocks as collidables - FIXED APPROACH
+    if (this.level2Blocks && Array.isArray(this.level2Blocks)) {
+      // Add each block individually as a collidable
+      this.level2Blocks.forEach(block => {
+        this.currentEnvironment.addCollidables([block]);
+      });
+      console.log(`Added ${this.level2Blocks.length} blocks as collidables`);
+    }
+
+    // Add wall as collidable
+    if (terrainData.wall) {
+      this.currentEnvironment.addCollidables([terrainData.wall]);
+    }
+
+    // Attach the update function to environment
+    if (terrainData.update) {
+      this.currentEnvironment.updateBlocks = terrainData.update;
+    }
+
+    // Load the main bedroom
     const { roomGroup, collidables, roomBox } = await createChildBedroom({
       scene: this.currentEnvironment.getScene(),
       THREE: THREE,
@@ -105,21 +125,22 @@ export class LevelManager {
       url: "./models/Stewie.glb",
     });
 
+    // Add bedroom collidables
     this.currentEnvironment.addCollidables(collidables);
     this.currentEnvironment.setRoomBounds(roomBox);
 
+    // Position player
     const player = this.currentEnvironment.getPlayer();
     if (player) {
-      // Get the room's center and adjust for room position
       const center = roomBox.getCenter(new THREE.Vector3());
-      // Place player in the middle of the room, slightly above floor to prevent clipping
       player.position.set(
-        center.x, // Center X (left/right)
-        roomBox.min.y + 0.5, // Floor level + small offset to prevent clipping
+        center.x,
+        roomBox.min.y + 0.5,
         center.z + 15
       );
     }
 
+    // Set camera distance
     this.playerController.cameraDistance = Math.min(
       this.playerController.cameraDistance,
       Math.max(3, roomBox.getSize(new THREE.Vector3()).length() * 0.08)
@@ -132,10 +153,9 @@ export class LevelManager {
       makeCollidable: true,
     });
 
-    // Instead of adding the whole group, add individual mesh collidables
+    // Add train collidables
     const trainCollidables = [];
     trainGroup.traverse((child) => {
-      // Only add meshes that are visible and have actual geometry
       if (child.isMesh && child.visible && child.geometry) {
         trainCollidables.push(child);
       }
@@ -149,10 +169,9 @@ export class LevelManager {
       url: "./models/mirror_a.glb",
     });
 
-    // Add individual mirror mesh collidables
+    // Add mirror collidables
     const mirrorCollidables = [];
     mirrorGroup.traverse((child) => {
-      // Only add meshes that are visible and have actual geometry
       if (child.isMesh && child.visible && child.geometry) {
         mirrorCollidables.push(child);
       }
@@ -192,11 +211,23 @@ export class LevelManager {
     console.log("Level 3 (Clocktower) loaded");
   }
 
+  // Add this method to update blocks in the animation loop
+  update(delta, elapsedTime) {
+    if (this.currentLevel === 2 && this.currentEnvironment && this.currentEnvironment.updateBlocks) {
+      this.currentEnvironment.updateBlocks(delta, elapsedTime);
+    }
+  }
+
   getCurrentEnvironment() {
     return this.currentEnvironment;
   }
 
   getCurrentLevel() {
     return this.currentLevel;
+  }
+
+  // Helper method to get blocks for debugging
+  getBlocks() {
+    return this.level2Blocks;
   }
 }

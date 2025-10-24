@@ -1,4 +1,30 @@
+// 2nd level\terrain.js
 import * as THREE from "three";
+import { createInteractiveToyBlocks } from "./movingToyBlocks.js";
+
+// Utility to create a wall box you can position anywhere (near the mirror, etc.)
+export function createWall(width, height, depth, x, y, z, paint, path) {
+  const wallgeometry = new THREE.BoxGeometry(width, height, depth);
+  const materialOptions = {};
+
+  if (path) {
+    const texture = new THREE.TextureLoader().load(path);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(1, 1);
+    texture.needsUpdate = true;
+    materialOptions.map = texture;
+  } else if (paint) {
+    materialOptions.color = paint;
+  }
+
+  const wallmaterial = new THREE.MeshPhongMaterial(materialOptions);
+  const wall = new THREE.Mesh(wallgeometry, wallmaterial);
+  wall.position.set(x, y, z);
+  wall.castShadow = true;
+  wall.receiveShadow = true;
+  return wall;
+}
 
 // Utility to create a wall box you can position anywhere (near the mirror, etc.)
 export function createWall(width, height, depth, x, y, z, paint, path) {
@@ -28,22 +54,22 @@ export function train(Scene) {
   const roomGroup = new THREE.Group();
   roomGroup.name = "ChildBedroom";
 
-  // Create the floor with marble texture
+  // --- Floor ---
   const textureLoader = new THREE.TextureLoader();
   const floorTexture = textureLoader.load("./2nd level/Textures/Could be.webp");
   floorTexture.wrapS = THREE.RepeatWrapping;
   floorTexture.wrapT = THREE.RepeatWrapping;
-  floorTexture.repeat.set(10, 10); // Adjust the repeat values to control texture tiling
+  floorTexture.repeat.set(10, 10);
 
-  const floorGeometry = new THREE.PlaneGeometry(100, 100); // Adjust size as needed
+  const floorGeometry = new THREE.PlaneGeometry(100, 100);
   const floorMaterial = new THREE.MeshStandardMaterial({
     map: floorTexture,
     roughness: 0.2,
     metalness: 0.1,
   });
   const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-  floor.rotation.x = -Math.PI / 2; // Rotate to be horizontal
-  floor.position.y = 0; // Place at ground level
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = 0;
   floor.receiveShadow = true;
   Scene.add(floor);
 
@@ -77,7 +103,6 @@ export function train(Scene) {
   // Final position: put the room so that floor y=0 in world space
   roomGroup.position.y = 0;
 
-  Scene.add(blocks); //code to add blocks to the scene
 
   return { roomGroup, blocks };
 }
