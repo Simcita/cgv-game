@@ -960,6 +960,7 @@ export class Environment {
       });
     }
   }
+  
 
   updateGearRotation(delta){ if(this.gear) this.gear.rotation.z+=delta; }
 
