@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Clocktower Quiz</title>
+  <link rel="stylesheet" href="./public/quiz-ui.css" />
+</head>
+<body>
+  <div id="game-ui"></div>
+
+  <script src="./public/quiz-ui.js"></script>
+  <script>
+    // Example Environment API mock for testing
+    const environment = {
+      setOnQuizTrigger: (cb) => window.triggerQuiz = cb,
+      setOnCorrectAnswer: (cb) => window.correctAnswer = cb,
+      setOnWrongAnswer: (cb) => window.wrongAnswer = cb,
+      setOnGameWon: (cb) => window.gameWon = cb,
+      setOnGameLost: (cb) => window.gameLost = cb,
+      submitAnswer: (index) => {
+        // simple example logic
+        if (index === window.currentQuiz.correct) {
+          window.correctAnswer("The clock hands align at midnight...");
+        } else {
+          attempts--;
+          window.wrongAnswer(attempts);
+          if (attempts === 0) window.gameLost();
+        }
+      },
+      resetGame: () => location.reload(),
+    };
+
+    // Initialize the UI
+    initQuizUI(environment);
+
+    // Example test trigger
+    let attempts = 2;
+    const quiz = {
+      question: "What runs but never walks?",
+      options: ["Clock", "River", "Wind", "Shadow"],
+      correct: 1,
+    };
+    const gameState = { currentStage: 0 };
+
+    // Trigger quiz after 1 second
+    setTimeout(() => {
+      window.triggerQuiz(quiz, gameState);
+      window.currentQuiz = quiz;
+    }, 1000);
+  </script>
+</body>
+</html>

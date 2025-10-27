@@ -1,5 +1,8 @@
+
+import { QuizUISystem } from './public/quiz-ui.js';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
 
 export class Environment {
   constructor() {
@@ -9,6 +12,11 @@ export class Environment {
     this.mixer = null;
     this.playerStartPosition = new THREE.Vector3(0, 0, 10);
     this.roomSize = 100;
+    this.onQuizTrigger = null;
+    this.onCorrectAnswer = null;
+    this.onWrongAnswer = null;
+    this.onGameWon = null;
+    this.onGameLost = null;
     
     // Game state
     this.gameState = {
@@ -21,20 +29,52 @@ export class Environment {
     
     // Quiz data
     this.quizzes = [
-      {
-        question: "What has hands but cannot clap?",
-        options: ["A. A puppet", "B. A clock", "C. A mannequin", "D. A skeleton"],
-        correctAnswer: 1, // Index of correct answer (B. A clock)
-        clue: "Look up high where time stands still, near the face that shows the will."
-      },
-      {
-        question: "I have a face but no eyes, hands but no fingers. What am I?",
-        options: ["A. A painting", "B. A mirror", "C. A watch", "D. A statue"],
-        correctAnswer: 2,
-        clue: "The golden wheel that spins below, holds the secret you must know."
-      }
+{
+  question: "I am born from the motion of shadows and end where silence reigns. I chase myself endlessly, yet never move an inch. I divide existence but own none of it. What am I?",
+  options: [
+    "A. The shadow of a sundial",
+    "B. The ticking of a clock",
+    "C. The passing of time",
+    "D. The turning of the Earth"
+  ],
+  correctAnswer: 1,
+  clue: "Listen closely, not to what you see move, but to what measures the movement itself."
+}
+
     ];
-    
+  this.quizUI = new QuizUISystem(this);
+
+    // --- Wire quiz callbacks ---
+    this.setOnQuizTrigger((quiz, state) => {
+      this.quizUI.showQuiz(quiz, (answerIndex) => {
+        const result = this.submitAnswer(answerIndex);
+        if (result) {
+          if (result.isCorrect) {
+            this.quizUI.showMessage("✅ Correct!");
+          } else {
+            this.quizUI.showMessage(`❌ Wrong! ${result.attemptsRemaining} attempts left.`);
+          }
+        }
+      });
+    });
+
+    this.setOnCorrectAnswer((clue) => {
+      this.quizUI.showMessage(`💡 Clue: ${clue}`);
+    });
+
+    this.setOnWrongAnswer((remaining) => {
+      this.quizUI.showMessage(`⚠️ Try again! ${remaining} attempts remaining.`);
+    });
+
+    this.setOnGameWon(() => {
+      this.quizUI.showMessage("🏆 You solved all riddles!");
+      this.quizUI.closeQuiz(3000);
+    });
+
+    this.setOnGameLost(() => {
+      this.quizUI.showMessage("💀 The clock stops here, Game Over...");
+      this.quizUI.closeQuiz(3000);
+    });
     // Platform triggers
     this.platformTriggers = [];
     this.specialBolt = null;
@@ -67,6 +107,44 @@ export class Environment {
     this.init();
     // Attempt to load cannon-es in the background for ragdoll support
     this.initPhysics().catch(() => {/* optional */});
+  }
+  // --- Setter methods ---
+  setOnQuizTrigger(cb) { this.onQuizTrigger = cb; }
+  setOnCorrectAnswer(cb) { this.onCorrectAnswer = cb; }
+  setOnWrongAnswer(cb) { this.onWrongAnswer = cb; }
+  setOnGameWon(cb) { this.onGameWon = cb; }
+  setOnGameLost(cb) { this.onGameLost = cb; }
+
+  // --- Trigger methods ---
+  triggerQuiz() { if(this.onQuizTrigger) this.onQuizTrigger(this.quizzes[this.gameState.currentStage], this.gameState); }
+  triggerCorrectAnswer(clue) { if(this.onCorrectAnswer) this.onCorrectAnswer(clue); }
+  triggerWrongAnswer(rem) { if(this.onWrongAnswer) this.onWrongAnswer(rem); }
+  triggerGameWon() { if(this.onGameWon) this.onGameWon(); }
+  triggerGameLost() { if(this.onGameLost) this.onGameLost(); }
+
+  // --- Quiz answer handler ---
+  handleQuizAnswer(isCorrect) {
+    const state = this.gameState;
+    if (state.hasAnsweredCurrentStage) return;
+    state.hasAnsweredCurrentStage = true;
+
+    if (isCorrect) {
+      state.currentStage++;
+      if (state.currentStage >= this.quizzes.length) {
+        state.gameWon = true;
+        this.quizUI.showMessage("🏆 You solved all riddles!");
+      } else {
+        this.quizUI.showMessage("✅ Correct! Proceed to the next mechanism.");
+      }
+    } else {
+      state.attemptsRemaining--;
+      if (state.attemptsRemaining <= 0) {
+        state.gameOver = true;
+        this.quizUI.showMessage("💀 No attempts left. Game Over.");
+      } else {
+        this.quizUI.showMessage(`❌ Wrong! ${state.attemptsRemaining} attempts remaining.`);
+      }
+    }
   }
 
   init() {
@@ -895,7 +973,7 @@ export class Environment {
     // Gear bump now handled inside checkCollisionsAndBumps
 
     this.updateClockHands(delta);
-    this.checkPlayerOnPlatform();
+
     
     // Animate special bolt glow
     if(this.specialBoltGlow && this.gameState.currentStage === 0) {
@@ -959,6 +1037,7 @@ export class Environment {
         p.rotation.z += delta * 0.8;
       });
     }
+    this.checkPlayerNearBolt();
   }
   
 
@@ -1205,102 +1284,68 @@ export class Environment {
       this.hourHand.rotation.z -= delta * 2 * Math.PI / 720;
     }
   }
-
-  checkPlayerOnPlatform() {
-    if(!this.player || this.gameState.gameOver || this.gameState.hasAnsweredCurrentStage) return;
-    
-    // Check if player is on the first platform (quiz platform)
-    const platform = this.platforms[0];
-    if(!platform) return;
-    
-    const playerPos = this.player.position;
-    const platformPos = platform.position;
-    
-    // Check if player is within platform bounds and at the right height
-    const xDist = Math.abs(playerPos.x - platformPos.x);
-    const zDist = Math.abs(playerPos.z - platformPos.z);
-    const yDist = Math.abs(playerPos.y - platformPos.y);
-    
-    if(xDist < 4 && zDist < 4 && yDist < 5) {
-      // Player is on the platform!
-      if(this.gameState.currentStage === 0 && !this.checkPlatformTrigger) {
-        this.checkPlatformTrigger = true;
-        this.triggerQuiz();
-      }
-    } else {
-      this.checkPlatformTrigger = false;
+  // --- Player-bolt proximity check ---
+  checkPlayerNearBolt() {
+    if(!this.player || !this.specialBolt || this.hasTriggeredQuiz || this.gameState.gameOver) return;
+    const distance = this.player.position.distanceTo(this.specialBolt.position);
+    if(distance < 3) {
+      this.hasTriggeredQuiz = true;
+      this.triggerQuiz();
     }
   }
 
-  triggerQuiz() {
-    if(this.onQuizTrigger) {
-      const currentQuiz = this.quizzes[this.gameState.currentStage];
-      this.onQuizTrigger(currentQuiz, this.gameState);
-    }
-  }
-
+  // --- Submit answer (called by UI) ---
   submitAnswer(answerIndex) {
     if(this.gameState.gameOver || this.gameState.hasAnsweredCurrentStage) return;
     
     const currentQuiz = this.quizzes[this.gameState.currentStage];
     const isCorrect = answerIndex === currentQuiz.correctAnswer;
-    
+
     if(isCorrect) {
-      // Correct answer!
-      this.gameState.hasAnsweredCurrentStage = true;
       this.gameState.currentStage++;
-      
       if(this.gameState.currentStage >= this.quizzes.length) {
-        // Game won!
         this.gameState.gameWon = true;
         this.gameState.gameOver = true;
-        if(this.onGameWon) this.onGameWon();
+        this.triggerGameWon();
       } else {
-        // Show clue for next stage
-        if(this.onCorrectAnswer) {
-          this.onCorrectAnswer(currentQuiz.clue);
-        }
-        // Reset for next stage
+        this.triggerCorrectAnswer(currentQuiz.clue);
+        this.hasTriggeredQuiz = false;
         this.gameState.hasAnsweredCurrentStage = false;
       }
     } else {
-      // Wrong answer!
       this.gameState.attemptsRemaining--;
-      
       if(this.gameState.attemptsRemaining <= 0) {
-        // Game over - lost
         this.gameState.gameOver = true;
-        if(this.onGameLost) this.onGameLost();
+        this.triggerGameLost();
       } else {
-        // Still have attempts left
-        if(this.onWrongAnswer) {
-          this.onWrongAnswer(this.gameState.attemptsRemaining);
-        }
+        this.triggerWrongAnswer(this.gameState.attemptsRemaining);
       }
     }
-    
+
     return { isCorrect, attemptsRemaining: this.gameState.attemptsRemaining };
   }
 
-  setOnQuizTrigger(callback) {
-    this.onQuizTrigger = callback;
+  // --- Reset game ---
+  resetGame() {
+    this.gameState = {
+      attemptsRemaining: 2,
+      currentStage: 0,
+      hasAnsweredCurrentStage: false,
+      gameOver: false,
+      gameWon: false
+    };
+    this.hasTriggeredQuiz = false;
+    if(this.player) {
+      this.player.position.copy(this.playerStartPosition);
+      this.playerVelocity.set(0,0,0);
+      this.playerVelY = 0;
+    }
   }
 
-  setOnCorrectAnswer(callback) {
-    this.onCorrectAnswer = callback;
-  }
+  
+  getGameState() { return this.gameState; }
 
-  setOnWrongAnswer(callback) {
-    this.onWrongAnswer = callback;
-  }
 
-  setOnGameWon(callback) {
-    this.onGameWon = callback;
-  }
-
-  setOnGameLost(callback) {
-    this.onGameLost = callback;
-  }
 
   // Enable a simple ragdoll using cannon-es (if available); otherwise no-op
   enableRagdoll(initialImpulse = new THREE.Vector3()) {
@@ -1365,7 +1410,6 @@ export class Environment {
   setOnBump(cb) { this.onBump = cb; }
   setOnRagdollStart(cb) { this.onRagdollStart = cb; }
 
-  getGameState() { return this.gameState; }
   getCollidables(){ return this.collidables; }
   getScene(){ return this.scene; }
   getPlayer(){ return this.player; }
