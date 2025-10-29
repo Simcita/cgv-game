@@ -1,5 +1,6 @@
 
 import { QuizUISystem } from './public/quiz-ui.js';
+import { QUIZZES } from './public/quizzes.js';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
@@ -27,39 +28,26 @@ export class Environment {
       gameWon: false
     };
     
-    // Quiz data
-    this.quizzes = [
-{
-  question: "I am born from the motion of shadows and end where silence reigns. I chase myself endlessly, yet never move an inch. I divide existence but own none of it. What am I?",
-  options: [
-    "A. The shadow of a sundial",
-    "B. The ticking of a clock",
-    "C. The passing of time",
-    "D. The turning of the Earth"
-  ],
-  correctAnswer: 1,
-  clue: "Listen closely, not to what you see move, but to what measures the movement itself."
-}
-
-    ];
+    // Quizzes: randomly sample 5 from a directory of 15 each play
+    this.allQuizzes = Array.isArray(QUIZZES) ? QUIZZES : [];
+    this.quizzes = this.sampleQuizzes(this.allQuizzes, 5);
   this.quizUI = new QuizUISystem(this);
 
     // --- Wire quiz callbacks ---
     this.setOnQuizTrigger((quiz, state) => {
-      this.quizUI.showQuiz(quiz, (answerIndex) => {
-        const result = this.submitAnswer(answerIndex);
-        if (result) {
-          if (result.isCorrect) {
-            this.quizUI.showMessage("✅ Correct!");
-          } else {
-            this.quizUI.showMessage(`❌ Wrong! ${result.attemptsRemaining} attempts left.`);
-          }
-        }
-      });
+      // Player reached the bolt: hide the current clue and show the quiz
+      if (this.quizUI && typeof this.quizUI.clearClue === 'function') {
+        this.quizUI.clearClue();
+      }
+      this.quizUI.showQuiz(quiz, state);
     });
 
     this.setOnCorrectAnswer((clue) => {
-      this.quizUI.showMessage(`💡 Clue: ${clue}`);
+      // Close the quiz and update the persistent clue for the next bolt
+      if (this.quizUI) {
+        if (typeof this.quizUI.closeQuiz === 'function') this.quizUI.closeQuiz();
+        if (typeof this.quizUI.setClue === 'function') this.quizUI.setClue(clue);
+      }
     });
 
     this.setOnWrongAnswer((remaining) => {
@@ -67,13 +55,15 @@ export class Environment {
     });
 
     this.setOnGameWon(() => {
-      this.quizUI.showMessage("🏆 You solved all riddles!");
-      this.quizUI.closeQuiz(3000);
+      if (this.quizUI && typeof this.quizUI.clearClue === 'function') this.quizUI.clearClue();
+      if (this.quizUI && typeof this.quizUI.showGameWon === 'function') this.quizUI.showGameWon();
+      else this.quizUI.closeQuiz(3000);
     });
 
     this.setOnGameLost(() => {
-      this.quizUI.showMessage("💀 The clock stops here, Game Over...");
-      this.quizUI.closeQuiz(3000);
+      if (this.quizUI && typeof this.quizUI.clearClue === 'function') this.quizUI.clearClue();
+      if (this.quizUI && typeof this.quizUI.showGameLost === 'function') this.quizUI.showGameLost();
+      else this.quizUI.closeQuiz(3000);
     });
     // Platform triggers
     this.platformTriggers = [];
@@ -114,6 +104,17 @@ export class Environment {
   setOnWrongAnswer(cb) { this.onWrongAnswer = cb; }
   setOnGameWon(cb) { this.onGameWon = cb; }
   setOnGameLost(cb) { this.onGameLost = cb; }
+
+  // Utility: sample n unique quizzes from a larger directory
+  sampleQuizzes(source, n) {
+    const arr = Array.isArray(source) ? source.slice() : [];
+    // Fisher-Yates shuffle first n positions
+    for (let i = 0; i < Math.min(n, arr.length); i++) {
+      const j = i + Math.floor(Math.random() * (arr.length - i));
+      const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+    return arr.slice(0, Math.min(n, arr.length));
+  }
 
   // --- Trigger methods ---
   triggerQuiz() { if(this.onQuizTrigger) this.onQuizTrigger(this.quizzes[this.gameState.currentStage], this.gameState); }
@@ -212,7 +213,7 @@ export class Environment {
     this.collidables.push(floor);
     this.playerStartPosition = new THREE.Vector3(0, 0, 35);
 
-    this.createGearObstacle();
+  this.createMassiveBoltObstacle();
     this.createRisingPlatforms();
     this.createCentralMechanism();
     this.createHangingChains();
@@ -221,6 +222,20 @@ export class Environment {
     this.createInterlinkedGears();
     this.createScatteredNutsAndBolts();
     this.createAdditionalClockMachinery();
+    this.createSideRooms();
+    // Prepare bolt spawn locations after environment pieces are created
+    this.computeBoltSpawns();
+    // Randomize the starting position of the special bolt as well
+    if (this.specialBolt && this.boltSpawns && this.boltSpawns.length) {
+      const idx = Math.floor(Math.random() * this.boltSpawns.length);
+      this.currentBoltSpawnIndex = idx;
+      const spawn = this.boltSpawns[idx];
+      this.moveSpecialBoltTo(spawn.pos);
+      // Show an initial persistent clue for the starting bolt location
+      if (this.quizUI && spawn.clue && typeof this.quizUI.setClue === 'function') {
+        this.quizUI.setClue(spawn.clue);
+      }
+    }
   }
 
   createClocktowerWalls(roomSize, wallHeight, wallThickness, wallMat) {
@@ -262,38 +277,97 @@ export class Environment {
     });
   }
 
-  createGearObstacle() {
-    const mat = new THREE.MeshPhongMaterial({ color: 0xFFD700, shininess: 100 });
-    const shape = new THREE.Shape(); const teeth=24, outerR=6, innerR=5;
-    for(let i=0;i<teeth;i++){
-      const a=i/teeth*Math.PI*2, na=(i+1)/teeth*Math.PI*2;
-      const x1=Math.cos(a)*outerR, y1=Math.sin(a)*outerR, x2=Math.cos((a+na)/2)*innerR, y2=Math.sin((a+na)/2)*innerR;
-      if(i===0) shape.moveTo(x1,y1); else shape.lineTo(x1,y1); shape.lineTo(x2,y2);
-    } shape.closePath();
-    const geo = new THREE.ExtrudeGeometry(shape,{ depth:1.2, bevelEnabled:false });
-    const mesh = new THREE.Mesh(geo, mat); mesh.rotation.y=Math.PI/4; mesh.position.set(0, -2, 0);
-    this.scene.add(mesh); this.collidables.push(mesh); this.gear=mesh;
-    // Save exact collision dimensions (radial in XY, thickness along Z)
-    this.gearCollision = { radius: 6, halfDepth: 1.2 / 2, playerRadius: 0.5 };
+  createMassiveBoltObstacle() {
+    const boltMat = new THREE.MeshStandardMaterial({ color: 0xB87333, metalness: 0.8, roughness: 0.35 });
+    const shaftRadius = 1.2;
+    const shaftLen = 6;
+    const headRadius = shaftRadius * 2.0;
+    const headHeight = 0.8;
+
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(shaftRadius, shaftRadius, shaftLen, 24), boltMat);
+    const head = new THREE.Mesh(new THREE.CylinderGeometry(headRadius, headRadius, headHeight, 24), boltMat);
+    const massiveBolt = new THREE.Group();
+    shaft.position.y = shaftLen / 2;
+    head.position.y = shaftLen + headHeight / 2;
+    massiveBolt.add(shaft, head);
+    // Place near center, slightly tilted, resting on ground
+    massiveBolt.position.set(0, 0, 0);
+    massiveBolt.rotation.z = Math.PI / 10;
+    massiveBolt.rotation.x = Math.PI / 16;
+    this.scene.add(massiveBolt);
+    this.massiveBolt = massiveBolt;
   }
 
   createRisingPlatforms() {
-    const mat = new THREE.MeshStandardMaterial({ color: 0x8B7355, metalness: 0.5, roughness: 0.5 });
+    // Replace moving box platforms with static huge bolts and nuts
+    const boltMat = new THREE.MeshStandardMaterial({ color: 0x9C5F2C, metalness: 0.85, roughness: 0.35 });
+    const nutMat = new THREE.MeshStandardMaterial({ color: 0x8B7355, metalness: 0.7, roughness: 0.45 });
+
+    const makeHugeBolt = (scale = 1) => {
+      const shaftR = 1.4 * scale;
+      const shaftH = 3.2 * scale;
+      const headR = shaftR * 1.8;
+      const headH = 1.0 * scale;
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(shaftR, shaftR, shaftH, 24), boltMat);
+      const head = new THREE.Mesh(new THREE.CylinderGeometry(headR, headR, headH, 24), boltMat);
+      const g = new THREE.Group();
+      shaft.position.y = shaftH / 2;
+      head.position.y = shaftH + headH / 2;
+      g.add(shaft, head);
+      return g;
+    };
+
+    const makeHugeNut = (scale = 1) => {
+      const outer = 2.2 * scale;
+      const height = 1.2 * scale;
+      const shape = new THREE.Shape();
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const x = Math.cos(a) * outer;
+        const y = Math.sin(a) * outer;
+        if (i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
+      }
+      shape.closePath();
+      const hole = new THREE.Path();
+      const inner = outer * 0.45;
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const x = Math.cos(a) * inner;
+        const y = Math.sin(a) * inner;
+        if (i === 0) hole.moveTo(x, y); else hole.lineTo(x, y);
+      }
+      hole.closePath();
+      shape.holes.push(hole);
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: true, bevelThickness: 0.06 * scale, bevelSize: 0.06 * scale });
+      const mesh = new THREE.Mesh(geo, nutMat);
+      mesh.rotation.x = -Math.PI / 2; // lie flat on the floor
+      mesh.position.y = height * 0.5;
+      return mesh;
+    };
+
     this.platforms = [];
     const positions = [
-        new THREE.Vector3(-15, 0.5, -15),
-        new THREE.Vector3(15, 0.5, -15),
-        new THREE.Vector3(-15, 0.5, 15),
-        new THREE.Vector3(15, 0.5, 15)
+      new THREE.Vector3(-15, 0, -15),
+      new THREE.Vector3(15, 0, -15),
+      new THREE.Vector3(-15, 0, 15),
+      new THREE.Vector3(15, 0, 15)
     ];
+
     positions.forEach((pos, i) => {
-        const mesh = new THREE.Mesh(new THREE.BoxGeometry(8, 0.5, 8), mat);
-        mesh.position.copy(pos);
-        mesh.userData.triggerIndex = i;
-        mesh.userData.isQuizPlatform = i === 0; // First platform is the quiz platform
-        this.scene.add(mesh);
-        this.collidables.push(mesh);
-        this.platforms.push(mesh);
+      // Alternate: bolt, nut, bolt, nut
+      const isBolt = i % 2 === 0;
+      const g = isBolt ? makeHugeBolt(1.0 + (i * 0.05)) : makeHugeNut(1.1 + (i * 0.05));
+      g.position.set(pos.x, 0, pos.z);
+      g.userData.triggerIndex = i;
+      g.userData.isQuizPlatform = i === 0; // first platform is quiz platform
+      // Tag with a disc-shaped collision footprint smaller than visuals to feel fair
+      const boxFull = new THREE.Box3().setFromObject(g);
+      const maxXZ = Math.max(boxFull.max.x - boxFull.min.x, boxFull.max.z - boxFull.min.z);
+      g.userData.collisionType = 'disc';
+      g.userData.collisionRadius = (maxXZ * 0.5) * 0.65; // 65% of visual half-extent
+      this.scene.add(g);
+      this.collidables.push(g);
+      this.platforms.push(g);
     });
   }
 
@@ -718,7 +792,7 @@ export class Environment {
       return new THREE.ExtrudeGeometry(hexShape, { depth: size * 0.5, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02 });
     };
     
-    // Create THE SPECIAL BOLT that points to the first platform
+  // Create THE SPECIAL BOLT that initially points to the first platform
     const firstPlatformPos = new THREE.Vector3(-15, 0.5, -15);
     const radius = 0.3;
     const length = 2;
@@ -731,7 +805,7 @@ export class Environment {
     head.position.y = radius * 0.4;
     specialBolt.add(shaft, head);
     
-    //Position the bolt to point toward the first platform
+  //Position the bolt to point toward the first platform
     const boltPosition = new THREE.Vector3(-8, 0.3, -8);
     specialBolt.position.copy(boltPosition);
     
@@ -756,6 +830,7 @@ export class Environment {
     glow.position.set(boltPosition.x, 1.5, boltPosition.z);
     this.scene.add(glow);
     this.specialBoltGlow = glow;
+  this.currentBoltSpawnIndex = -1; // will be chosen after first correct answer
     
     // Scatter regular nuts on the floor
     for(let i = 0; i < 40; i++) {
@@ -981,17 +1056,7 @@ export class Environment {
       this.specialBoltGlow.material.opacity = 0.4 + Math.sin(Date.now() * 0.004) * 0.2;
     }
     
-    // Animate rising platforms with slower, heavier movement
-    if(this.platforms) {
-      this.platforms.forEach((p, i) => { 
-        p.position.y = 0.5 + Math.sin(Date.now() * 0.0005 + i * 1.5) * 4;
-      });
-      // Keep player attached if standing on a moving platform
-      if (this.grounded && this.groundObject && this.platforms.includes(this.groundObject)) {
-        const topY = this.groundObject.position.y + 0.25; // half of 0.5 height
-        this.player.position.y = topY;
-      }
-    }
+    // Platforms are now static (huge bolts and nuts); no y-animation needed
     
     // Animate central mechanism gears
     if(this.mechanismGears) {
@@ -1037,6 +1102,28 @@ export class Environment {
         p.rotation.z += delta * 0.8;
       });
     }
+    // Animate steam clouds (local visibility effects)
+    if (this.steamClouds && this.steamClouds.length) {
+      const t = Date.now() * 0.0003;
+      this.steamClouds.forEach((c, i) => {
+        // gentle bobbing and very slow drift
+        c.position.y = c.userData.baseY + Math.sin(t + i) * 0.3;
+        c.position.x = c.userData.baseX + Math.sin(t * 0.5 + i * 0.3) * 0.2;
+        c.position.z = c.userData.baseZ + Math.cos(t * 0.5 + i * 0.3) * 0.2;
+        if (c.material) {
+          c.material.opacity = c.userData.baseOpacity * (0.85 + 0.15 * Math.sin(t * 0.7 + i));
+        }
+      });
+    }
+    // Animate dust planes subtle fade
+    if (this.dustPlanes && this.dustPlanes.length) {
+      const t2 = Date.now() * 0.0005;
+      this.dustPlanes.forEach((p, i) => {
+        if (p.material) {
+          p.material.opacity = p.userData.baseOpacity * (0.7 + 0.3 * (0.5 + 0.5 * Math.sin(t2 + i)));
+        }
+      });
+    }
     this.checkPlayerNearBolt();
   }
   
@@ -1056,15 +1143,24 @@ export class Environment {
       bestGround = null;
     }
 
-    // Platforms: pick the highest valid top under/near the player
+    // Platforms: pick the highest valid top (AABB-based) under/near the player
     if (this.platforms && this.platforms.length) {
       for (const p of this.platforms) {
-        const half = { x: 4.0, y: 0.25, z: 4.0 }; // box 8 x 0.5 x 8
-        // Horizontal bounds (expand by player radius)
-        const inX = Math.abs(this.player.position.x - p.position.x) <= (half.x + this.playerRadius);
-        const inZ = Math.abs(this.player.position.z - p.position.z) <= (half.z + this.playerRadius);
-        if (!inX || !inZ) continue;
-        const topY = p.position.y + half.y;
+        const boxFull = new THREE.Box3().setFromObject(p);
+        // Horizontal in-bounds using disc radius if present, otherwise shrunken AABB
+        let inHoriz = false;
+        if (p.userData && p.userData.collisionType === 'disc' && p.userData.collisionRadius) {
+          const dx = this.player.position.x - p.position.x;
+          const dz = this.player.position.z - p.position.z;
+          const dist = Math.hypot(dx, dz);
+          inHoriz = dist <= (p.userData.collisionRadius + this.playerRadius);
+        } else {
+          const box = this._shrinkAABB(boxFull, 0.5, 0.5);
+          inHoriz = this.player.position.x >= (box.min.x - this.playerRadius) && this.player.position.x <= (box.max.x + this.playerRadius)
+                 && this.player.position.z >= (box.min.z - this.playerRadius) && this.player.position.z <= (box.max.z + this.playerRadius);
+        }
+        if (!inHoriz) continue;
+        const topY = boxFull.max.y; // use full height for top contact
         // If feet are within stepHeight below top or slightly above it, allow stepping/snap
         if (feetY >= topY - this.stepHeight && feetY <= topY + 0.08) {
           if (topY > bestTop) {
@@ -1109,67 +1205,75 @@ export class Environment {
     }
   }
 
+  // Slightly shrink an AABB in X/Z to better match visual footprint (avoid over-large collision area)
+  _shrinkAABB(box, marginX = 0.5, marginZ = 0.5) {
+    const b = box.clone();
+    const halfX = (b.max.x - b.min.x) / 2;
+    const halfZ = (b.max.z - b.min.z) / 2;
+    // Ensure we never invert min/max; keep at least a tiny width
+    const dx = Math.min(Math.max(marginX, 0), Math.max(halfX - 0.01, 0));
+    const dz = Math.min(Math.max(marginZ, 0), Math.max(halfZ - 0.01, 0));
+    b.min.x += dx; b.max.x -= dx;
+    b.min.z += dz; b.max.z -= dz;
+    return b;
+  }
+
+  // Build an axis-aligned box from a horizontal disc footprint and vertical bounds
+  _discAABB(center, radius, minY, maxY) {
+    return new THREE.Box3(
+      new THREE.Vector3(center.x - radius, minY, center.z - radius),
+      new THREE.Vector3(center.x + radius, maxY, center.z + radius)
+    );
+  }
+
   // Unified collision + bump handling
   checkCollisionsAndBumps() {
     if (!this.player) return;
     const playerHalf = new THREE.Vector3(0.5, 1.0, 0.5); // approx capsule AABB
     const pb = this._getPlayerAABB();
 
-    // Bump against gear (use exact mesh dimensions in XY, thickness along Z)
-    if (this.gear && this.gearCollision) {
-      const gc = this.gearCollision;
-      const gpos = this.gear.position;
-      const dx = this.player.position.x - gpos.x;
-      const dy = this.player.position.y - gpos.y;
-      const dz = this.player.position.z - gpos.z;
-      const radial = Math.hypot(dx, dy);
-      const radialOverlap = (gc.radius + gc.playerRadius) - radial;
-      const zOverlap = (gc.halfDepth + playerHalf.z) - Math.abs(dz);
-      if (radialOverlap > 0 && zOverlap > 0 && this._bumpCooldown <= 0) {
-        // Separate along the least-penetration axis (radial vs thickness)
-        if (zOverlap < radialOverlap) {
-          const sep = new THREE.Vector3(0, 0, (dz >= 0 ? zOverlap : -zOverlap));
-          this.player.position.add(sep);
-          this.applyBumpImpulse(new THREE.Vector3(0, 0.5, Math.sign(sep.z) * 2));
-        } else {
-          const n = radial > 1e-4 ? new THREE.Vector3(dx / radial, dy / radial, 0) : new THREE.Vector3(1, 0, 0);
-          const sep = n.multiplyScalar(radialOverlap);
-          this.player.position.add(sep);
-          this.applyBumpImpulse(sep.clone().setLength(6).add(new THREE.Vector3(0, 1.0, 0)));
-        }
-        this._bumpCooldown = 0.18;
-        // Refresh AABB after moving the player
+    // Massive bolt obstacle: solid block, no rebound (AABB separation only)
+    if (this.massiveBolt) {
+      const bx = new THREE.Box3().setFromObject(this.massiveBolt);
+      if (pb.intersectsBox(bx) && this._bumpCooldown <= 0) {
+        const sep = this._aabbSeparation(pb, bx);
+        this.player.position.add(sep);
+        this._bumpCooldown = 0.12;
         pb.copy(this._getPlayerAABB());
       }
     }
 
-    // Platforms
+    // Platforms: separation only (no impulses) and no cooldown to prevent tunneling
     if (this.platforms && this.platforms.length) {
       for (const p of this.platforms) {
-        const pbx = new THREE.Box3().setFromObject(p);
-        if (pb.intersectsBox(pbx) && this._bumpCooldown <= 0) {
-          const platformTop = p.position.y + 0.25; // half-height of 0.5
-          // If currently grounded on this platform, don't separate; let grounding/snapping keep us attached
+        const pbxFull = new THREE.Box3().setFromObject(p);
+        // Build a tighter AABB from disc radius when available
+        const pbx = (p.userData && p.userData.collisionType === 'disc' && p.userData.collisionRadius)
+          ? this._discAABB(p.position, p.userData.collisionRadius, pbxFull.min.y, pbxFull.max.y)
+          : this._shrinkAABB(pbxFull, 0.5, 0.5);
+        if (pb.intersectsBox(pbx)) {
+          const platformTop = pbxFull.max.y;
+          // If currently grounded on this platform, let grounding keep us attached
           if (this.grounded && this.groundObject === p) {
             continue;
           }
-          // If player is above top surface and horizontally within platform bounds (+radius), skip separation (top contact)
-          const halfX = 4.0, halfZ = 4.0;
-          const inX = Math.abs(this.player.position.x - p.position.x) <= (halfX + this.playerRadius);
-          const inZ = Math.abs(this.player.position.z - p.position.z) <= (halfZ + this.playerRadius);
-          if (inX && inZ && this.player.position.y >= platformTop - 0.02) {
+          // If horizontally within bounds and player is at/above top, treat as top contact (no lateral separation)
+          const inTopHoriz = (p.userData && p.userData.collisionType === 'disc' && p.userData.collisionRadius)
+            ? (Math.hypot(this.player.position.x - p.position.x, this.player.position.z - p.position.z) <= (p.userData.collisionRadius + this.playerRadius))
+            : (this.player.position.x >= (pbx.min.x - this.playerRadius) && this.player.position.x <= (pbx.max.x + this.playerRadius)
+            && this.player.position.z >= (pbx.min.z - this.playerRadius) && this.player.position.z <= (pbx.max.z + this.playerRadius));
+          if (inTopHoriz && this.player.position.y >= platformTop - 0.04) {
+            // Let resolveGroundingAndPlatforms handle snapping; skip separation
             continue;
           }
 
-          // Resolve minimally with AABB separation, add gentle impulse
+          // Minimal separation without impulses; avoid pushing player downward if above the top
           const sep = this._aabbSeparation(pb, pbx);
-          this.player.position.add(sep);
-          if (sep.lengthSq() > 0.0001) {
-            // Only add small vertical boost if separation is upward (prevent sticking when coming from below)
-            const extraY = sep.y > 0 ? 0.6 : 0;
-            this.applyBumpImpulse(sep.clone().setLength(3).add(new THREE.Vector3(0, extraY, 0)));
+          if (sep.y < 0 && this.player.position.y >= platformTop - 0.04) {
+            sep.y = 0; // prevent downward shove when near/above top surface
           }
-          this._bumpCooldown = 0.12;
+          this.player.position.add(sep);
+          // No cooldown here: resolve every frame so platforms can't pass through the player
           pb.copy(this._getPlayerAABB());
         }
       }
@@ -1231,15 +1335,14 @@ export class Environment {
       }
     }
 
-    // Nuts (tiny floor items), very gentle nudge
+    // Nuts (tiny floor items), separation-only (no bump/impulse)
     if (this.nuts && this.nuts.length) {
       for (const n of this.nuts) {
         const bx = new THREE.Box3().setFromObject(n);
-        if (pb.intersectsBox(bx) && this._bumpCooldown <= 0) {
+        if (pb.intersectsBox(bx)) {
           const sep = this._aabbSeparation(pb, bx);
           this.player.position.add(sep);
-          if (sep.lengthSq() > 0.0001) this.applyBumpImpulse(sep.clone().setLength(1.2).add(new THREE.Vector3(0, 0.15, 0)));
-          this._bumpCooldown = 0.05;
+          // No impulse and no cooldown for nuts; just resolve overlap
           pb.copy(this._getPlayerAABB());
         }
       }
@@ -1308,7 +1411,9 @@ export class Environment {
         this.gameState.gameOver = true;
         this.triggerGameWon();
       } else {
-        this.triggerCorrectAnswer(currentQuiz.clue);
+        // Move the special bolt to a new random spawn and present a clue for its new location
+        const clue = this.selectNextBoltSpawn();
+        this.triggerCorrectAnswer(clue);
         this.hasTriggeredQuiz = false;
         this.gameState.hasAnsweredCurrentStage = false;
       }
@@ -1415,4 +1520,314 @@ export class Environment {
   getPlayer(){ return this.player; }
   getMixer(){ return this.mixer; }
   getPlayerStartPosition(){ return this.playerStartPosition||new THREE.Vector3(0,0,10); }
+
+  // ---- Bolt spawn management ----
+  computeBoltSpawns() {
+    // Define named spawn points with flavorful clues
+    const near = (v, dx = 0, dz = 0) => new THREE.Vector3(v.x + dx, 0.3, v.z + dz);
+    const room = this.roomSize;
+
+    // Base references
+    const platformRefs = (this.platforms || []).map(p => p.position.clone());
+    const chainRefs = [
+      new THREE.Vector3(-25, 0, -25),
+      new THREE.Vector3(25, 0, -25),
+      new THREE.Vector3(-25, 0, 25),
+      new THREE.Vector3(25, 0, 25)
+    ];
+    const pipeRing = (r, a) => new THREE.Vector3(Math.cos(a) * r, 0.3, Math.sin(a) * r);
+
+    const spawns = [];
+
+    // Around platforms
+    if (platformRefs[0]) spawns.push({
+      name: 'northwest platform',
+      pos: near(platformRefs[0], 3.5, -1.5),
+      clue: 'Where the first platform rises and falls in the northwest.'
+    });
+    if (platformRefs[1]) spawns.push({
+      name: 'northeast platform',
+      pos: near(platformRefs[1], -3.5, -1.5),
+      clue: 'By the platform that watches the northeast corner.'
+    });
+    if (platformRefs[2]) spawns.push({
+      name: 'southwest platform',
+      pos: near(platformRefs[2], 2.0, 3.5),
+      clue: 'Close to the platform that waits in the southwest.'
+    });
+    if (platformRefs[3]) spawns.push({
+      name: 'southeast platform',
+      pos: near(platformRefs[3], -2.0, 3.5),
+      clue: 'Near the platform where sunrise would strike: southeast.'
+    });
+
+    // Near big clock face (north wall)
+    spawns.push({
+      name: 'clock face',
+      pos: new THREE.Vector3(0, 0.3, -room / 2 + 5),
+      clue: 'Where the great face watches from the north wall.'
+    });
+
+    // East / West / South gear walls
+    spawns.push({
+      name: 'east gears',
+      pos: new THREE.Vector3(room / 2 - 5, 0.3, 0),
+      clue: 'Where the eastern gears chatter in golden teeth.'
+    });
+    spawns.push({
+      name: 'west gears',
+      pos: new THREE.Vector3(-room / 2 + 5, 0.3, 0),
+      clue: 'Where the western cogs grind in steady time.'
+    });
+    spawns.push({
+      name: 'south gears',
+      pos: new THREE.Vector3(0, 0.3, room / 2 - 5),
+      clue: 'In the south, where wheels within wheels quietly turn.'
+    });
+
+    // Beneath the north and south catwalks (on the floor)
+    spawns.push({
+      name: 'under north catwalk',
+      pos: new THREE.Vector3(0, 0.3, -35),
+      clue: 'under the narrow walkway where cold northern drafts creep.'
+    });
+    spawns.push({
+      name: 'under south catwalk',
+      pos: new THREE.Vector3(0, 0.3, 35),
+      clue: 'beneath the southern catwalk, where footsteps echo softly.'
+    });
+
+    // Near hanging chains (choose the first for a stable hint location)
+    chainRefs.forEach((c, idx) => {
+      spawns.push({
+        name: `hanging chain ${idx + 1}`,
+        pos: new THREE.Vector3(c.x, 0.3, c.z),
+        clue: 'Where iron links sway ever so slightly from above.'
+      });
+    });
+
+    // By the pipe ring positions (at radius ~35)
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + Math.PI / 8;
+      spawns.push({
+        name: `pipe ring ${i + 1}`,
+        pos: pipeRing(35, a),
+        clue: 'Near the bronze pipes that stand like sentries in a ring.'
+      });
+    }
+
+    // Near central mechanism base
+    spawns.push({
+      name: 'central mechanism',
+      pos: new THREE.Vector3(0, 0.3, 0),
+      clue: 'by the humming heart of the tower, at the very center.'
+    });
+
+    // Rooms: doorway and interior positions
+    const boltsRoomCenter = new THREE.Vector3(-28, 0, 0);
+    const boltsRoomHalfD = 12 / 2;
+    const storageRoomCenter = new THREE.Vector3(28, 0, 8);
+    const storageRoomHalfD = 14 / 2;
+
+    spawns.push({
+      name: 'bolts room doorway',
+      pos: new THREE.Vector3(boltsRoomCenter.x, 0.3, boltsRoomCenter.z + boltsRoomHalfD + 0.8),
+      clue: 'at the doorway of the Bolts Room—two wall bolts watch within.'
+    });
+    spawns.push({
+      name: 'bolts room interior',
+      pos: new THREE.Vector3(boltsRoomCenter.x + 2, 0.3, boltsRoomCenter.z + 1),
+      clue: 'inside the Bolts Room, beneath the two wall-mounted bolts and crates.'
+    });
+    spawns.push({
+      name: 'storage room doorway',
+      pos: new THREE.Vector3(storageRoomCenter.x, 0.3, storageRoomCenter.z + storageRoomHalfD + 0.8),
+      clue: 'by the Storage Room entrance, where crates stack like walls.'
+    });
+    spawns.push({
+      name: 'storage room interior',
+      pos: new THREE.Vector3(storageRoomCenter.x - 2, 0.3, storageRoomCenter.z - 1),
+      clue: 'within the Storage Room, between the dusty crates.'
+    });
+
+    this.boltSpawns = spawns;
+  }
+
+  moveSpecialBoltTo(pos) {
+    if (!this.specialBolt) return;
+    this.specialBolt.position.copy(pos);
+    if (this.specialBoltGlow) this.specialBoltGlow.position.set(pos.x, 1.5, pos.z);
+    // Give it a slight fun tilt and random yaw so it feels freshly placed
+    this.specialBolt.rotation.x = Math.PI / 2.5;
+    this.specialBolt.rotation.y = Math.random() * Math.PI * 2;
+  }
+
+  selectNextBoltSpawn() {
+    // Choose a random spawn different from the previous one
+    if (!this.boltSpawns || this.boltSpawns.length === 0) return 'Listen for a faint metallic whisper...';
+    let next = Math.floor(Math.random() * this.boltSpawns.length);
+    if (this.currentBoltSpawnIndex >= 0 && this.boltSpawns.length > 1) {
+      // Avoid repeating the same spawn back-to-back
+      let safety = 0;
+      while (next === this.currentBoltSpawnIndex && safety++ < 10) {
+        next = Math.floor(Math.random() * this.boltSpawns.length);
+      }
+    }
+    this.currentBoltSpawnIndex = next;
+    const spawn = this.boltSpawns[next];
+    this.moveSpecialBoltTo(spawn.pos);
+    return `The next bolt will appear ${spawn.clue}`;
+  }
+
+  // ---- Side rooms with doors and reduced visibility/obstacles ----
+  createSideRooms() {
+    this.steamClouds = [];
+    this.dustPlanes = [];
+
+    // Helper to build a simple rectangular room with a doorway gap on the front side
+    const buildRoom = ({ center, width, depth, height = 10, name, style }) => {
+      const group = new THREE.Group();
+      group.position.copy(center);
+      const halfW = width / 2;
+      const halfD = depth / 2;
+      const doorW = 3;
+      const wallThick = 0.5;
+      const wallMat = new THREE.MeshPhongMaterial({ color: 0x6d5a4b, shininess: 8 });
+
+      // Floor
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), new THREE.MeshPhongMaterial({ color: 0x5e4d3f }));
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.set(0, 0, 0);
+      group.add(floor);
+      this.scene.add(group);
+
+      // Back wall (full)
+      const back = new THREE.Mesh(new THREE.BoxGeometry(width, height, wallThick), wallMat);
+      back.position.set(0, height / 2, -halfD);
+      group.add(back); this.beams.push(back); this.collidables.push(back);
+
+      // Left wall (full)
+      const left = new THREE.Mesh(new THREE.BoxGeometry(wallThick, height, depth), wallMat);
+      left.position.set(-halfW, height / 2, 0);
+      group.add(left); this.beams.push(left); this.collidables.push(left);
+
+      // Right wall (full)
+      const right = new THREE.Mesh(new THREE.BoxGeometry(wallThick, height, depth), wallMat);
+      right.position.set(halfW, height / 2, 0);
+      group.add(right); this.beams.push(right); this.collidables.push(right);
+
+      // Front wall: split to leave a doorway gap at center
+      const sideW = (width - doorW) / 2;
+      const frontLeft = new THREE.Mesh(new THREE.BoxGeometry(sideW, height, wallThick), wallMat);
+      frontLeft.position.set(-halfW + sideW / 2, height / 2, halfD);
+      group.add(frontLeft); this.beams.push(frontLeft); this.collidables.push(frontLeft);
+
+      const frontRight = new THREE.Mesh(new THREE.BoxGeometry(sideW, height, wallThick), wallMat);
+      frontRight.position.set(halfW - sideW / 2, height / 2, halfD);
+      group.add(frontRight); this.beams.push(frontRight); this.collidables.push(frontRight);
+
+      // Simple door frame decoration (non-collidable)
+      const frameMat = new THREE.MeshStandardMaterial({ color: 0x9b7a57, metalness: 0.4, roughness: 0.6 });
+      const topFrame = new THREE.Mesh(new THREE.BoxGeometry(doorW, 0.3, 0.3), frameMat);
+      topFrame.position.set(0, 2.2, halfD + 0.2);
+      const sideFrameL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.2, 0.3), frameMat);
+      sideFrameL.position.set(-doorW / 2 + 0.15, 1.1, halfD + 0.2);
+      const sideFrameR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.2, 0.3), frameMat);
+      sideFrameR.position.set(doorW / 2 - 0.15, 1.1, halfD + 0.2);
+      group.add(topFrame, sideFrameL, sideFrameR);
+
+      // Lighting inside room (dim)
+      const lamp = new THREE.PointLight(0xffe0b3, 0.6, Math.max(width, depth));
+      lamp.position.set(0, height - 2, 0);
+      group.add(lamp);
+
+      // Style-specific interior to reduce visibility
+  if (style === 'bolts') {
+        // Large bolts scattered as obstacles and sight blockers
+        const boltMat = new THREE.MeshStandardMaterial({ color: 0x9C5F2C, metalness: 0.85, roughness: 0.35 });
+        const makeBolt = (scale = 1.0) => {
+          const shaftR = 0.35 * scale;
+          const shaftH = 1.4 * scale;
+          const headR = shaftR * 2.2;
+          const headH = 0.35 * scale;
+          const shaft = new THREE.Mesh(new THREE.CylinderGeometry(shaftR, shaftR, shaftH, 16), boltMat);
+          const head = new THREE.Mesh(new THREE.CylinderGeometry(headR, headR, headH, 16), boltMat);
+          const g = new THREE.Group();
+          shaft.position.y = shaftH / 2;
+          head.position.y = shaftH + headH / 2;
+          g.add(shaft, head);
+          return g;
+        };
+        // Two wall-mounted bolts
+        const boltLeft = makeBolt(1.1);
+        boltLeft.rotation.z = -Math.PI / 2; // point into room from left wall
+        boltLeft.position.set(-halfW + wallThick * 0.6, 2.2, 0);
+        group.add(boltLeft);
+        this.collidables.push(boltLeft);
+        this.bolts.push(boltLeft);
+
+        const boltRight = makeBolt(1.1);
+        boltRight.rotation.z = Math.PI / 2; // point into room from right wall
+        boltRight.position.set(halfW - wallThick * 0.6, 2.2, 0);
+        group.add(boltRight);
+        this.collidables.push(boltRight);
+        this.bolts.push(boltRight);
+
+        // Add some boxes (crates) on the floor as obstacles
+        const crateMat = new THREE.MeshStandardMaterial({ color: 0x8a6b47, roughness: 0.8, metalness: 0.1 });
+        for (let i = 0; i < 6; i++) {
+          const w = 1 + Math.random() * 1.5;
+          const h = 0.8 + Math.random() * 1.8;
+          const d = 1 + Math.random() * 1.5;
+          const crate = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), crateMat);
+          crate.position.set(
+            (Math.random() - 0.5) * (width - 3),
+            h / 2,
+            (Math.random() - 0.5) * (depth - 3)
+          );
+          group.add(crate);
+          this.beams.push(crate);
+          this.collidables.push(crate);
+        }
+      } else if (style === 'storage') {
+        // Crates to block sight (collidable)
+        const crateMat = new THREE.MeshStandardMaterial({ color: 0x8a6b47, roughness: 0.8, metalness: 0.1 });
+        for (let i = 0; i < 14; i++) {
+          const w = 1 + Math.random() * 1.2;
+          const h = 0.8 + Math.random() * 1.5;
+          const d = 1 + Math.random() * 1.2;
+          const crate = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), crateMat);
+          crate.position.set(
+            (Math.random() - 0.5) * (width - 3),
+            h / 2,
+            (Math.random() - 0.5) * (depth - 3)
+          );
+          group.add(crate);
+          this.beams.push(crate);
+          this.collidables.push(crate);
+        }
+        // Dusty haze planes (non-collidable)
+        for (let i = 0; i < 8; i++) {
+          const plane = new THREE.Mesh(new THREE.PlaneGeometry(4 + Math.random() * 3, 2 + Math.random() * 2), new THREE.MeshBasicMaterial({ color: 0xcbbba0, transparent: true, opacity: 0.25 + Math.random() * 0.2, side: THREE.DoubleSide }));
+          plane.position.set(
+            (Math.random() - 0.5) * (width - 2),
+            1.2 + Math.random() * 2,
+            (Math.random() - 0.5) * (depth - 2)
+          );
+          plane.rotation.y = Math.random() * Math.PI;
+          plane.userData.baseOpacity = plane.material.opacity;
+          group.add(plane);
+          this.dustPlanes.push(plane);
+        }
+      }
+
+      // Save reference
+      if (!this.rooms) this.rooms = [];
+      this.rooms.push({ name, group, bounds: { width, depth, height } });
+    };
+
+    // Place two rooms inside the hall
+    buildRoom({ center: new THREE.Vector3(-28, 0, 0), width: 16, depth: 12, name: 'Bolts Room', style: 'bolts' });
+    buildRoom({ center: new THREE.Vector3(28, 0, 8), width: 18, depth: 14, name: 'Storage Room', style: 'storage' });
+  }
 }
