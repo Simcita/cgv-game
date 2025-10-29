@@ -4,6 +4,7 @@ export class QuizUISystem {
     this.selectedAnswer = null;
     this.attemptsRemaining = 2;
     this.initUI();
+    this.initClueBar();
     this.bindEnvironmentCallbacks();
     
   }
@@ -30,6 +31,39 @@ initUI() {
   document.body.appendChild(this.container);
 }
 
+initClueBar() {
+  // A small persistent HUD bar to show the current clue
+  this.clueBar = document.createElement('div');
+  this.clueBar.id = 'clue-bar';
+  this.clueBar.style.position = 'fixed';
+  this.clueBar.style.bottom = '16px';
+  this.clueBar.style.left = '50%';
+  this.clueBar.style.transform = 'translateX(-50%)';
+  this.clueBar.style.background = 'rgba(0,0,0,0.75)';
+  this.clueBar.style.color = '#ffd700';
+  this.clueBar.style.padding = '8px 14px';
+  this.clueBar.style.borderRadius = '10px';
+  this.clueBar.style.fontFamily = 'sans-serif';
+  this.clueBar.style.fontSize = '1rem';
+  this.clueBar.style.zIndex = '999';
+  this.clueBar.style.maxWidth = '80vw';
+  this.clueBar.style.textAlign = 'center';
+  this.clueBar.style.display = 'none';
+  document.body.appendChild(this.clueBar);
+}
+
+setClue(text) {
+  if (!this.clueBar) return;
+  this.clueBar.textContent = `💡 Clue: ${text}`;
+  this.clueBar.style.display = 'block';
+}
+
+clearClue() {
+  if (!this.clueBar) return;
+  this.clueBar.textContent = '';
+  this.clueBar.style.display = 'none';
+}
+
 showQuiz(quiz, state) {
   console.log('Showing quiz:', quiz);
   this.container.innerHTML = `
@@ -43,6 +77,19 @@ showQuiz(quiz, state) {
         text-align: center;
         box-shadow: 0 0 20px rgba(0,0,0,0.5);
     ">
+      <button id="quiz-close-btn" aria-label="Close quiz" title="Close" style="
+        position:absolute;
+        top:8px;
+        right:10px;
+        width:32px;
+        height:32px;
+        border:none;
+        border-radius:16px;
+        background:#444;
+        color:#fff;
+        cursor:pointer;
+        font-weight:bold;
+      ">×</button>
 
       <h2>🕰️ Clocktower Riddle</h2>
       <p class="question">${quiz.question}</p>
@@ -94,6 +141,16 @@ showQuiz(quiz, state) {
   // Submit button
   this.submitBtn.addEventListener('click', () => this.submitAnswer());
 
+  // Close (X) button
+  const closeBtn = this.container.querySelector('#quiz-close-btn');
+  closeBtn.addEventListener('click', () => {
+    // Allow the player to re-trigger the quiz by clearing the environment flag
+    if (this.environment && typeof this.environment === 'object') {
+      this.environment.hasTriggeredQuiz = false;
+    }
+    this.closeQuiz();
+  });
+
 
 }
 
@@ -127,14 +184,38 @@ selectAnswer(index) {
 
   showClue(clue) {
     this.container.innerHTML = `
-      <div class="clue-modal">
-        <h2>🔍 Clue Found!</h2>
-        <p>"${clue}"</p>
-        <button id="continue-btn">Continue</button>
+      <div style="
+        position: relative;
+        background: #222;
+        padding: 30px;
+        border-radius: 10px;
+        min-width: 300px;
+        max-width: 600px;
+        text-align: center;
+        box-shadow: 0 0 20px rgba(0,0,0,0.5);
+      ">
+        <h2>✅ Correct!</h2>
+        <p style="opacity:0.85; margin-top:10px;">Clue for the next bolt:</p>
+        <p style="margin: 10px 0 20px; font-style: italic;">"${clue}"</p>
+        <button id="close-quiz-btn" style="
+          margin-top: 10px;
+          padding: 10px 20px;
+          border:none;
+          border-radius:5px;
+          background:#28a745;
+          color:white;
+          cursor:pointer;
+          font-size:1rem;
+        ">Close</button>
       </div>
     `;
-    document.querySelector('#continue-btn').addEventListener('click', () => {
-        this.container.style.visibility = 'hidden';
+    const closeBtn = this.container.querySelector('#close-quiz-btn');
+    closeBtn.addEventListener('click', () => {
+      this.container.style.visibility = 'hidden';
+      this.selectedAnswer = null;
+      this.feedbackEl = null;
+      this.submitBtn = null;
+      this.container.innerHTML = '';
     });
   }
 
@@ -253,12 +334,20 @@ showMessage(msg, color = 'yellow') {
 
   bindEnvironmentCallbacks() {
     const env = this.environment;
-    env.setOnQuizTrigger((quiz, state) => this.showQuiz(quiz, state));
-    env.setOnCorrectAnswer((clue) => this.showClue(clue));
+    env.setOnQuizTrigger((quiz, state) => {
+      // Player found the bolt; hide the clue until next bolt is placed
+      this.clearClue();
+      this.showQuiz(quiz, state);
+    });
+    env.setOnCorrectAnswer((clue) => {
+      // Close quiz UI and update persistent clue for the next bolt
+      this.closeQuiz();
+      this.setClue(clue);
+    });
     env.setOnWrongAnswer((attemptsLeft) => {
       this.showFeedback(`Wrong answer! ${attemptsLeft} attempts left.`, 'red');
     });
-    env.setOnGameWon(() => this.showGameWon());
-    env.setOnGameLost(() => this.showGameLost());
+    env.setOnGameWon(() => { this.clearClue(); this.showGameWon(); });
+    env.setOnGameLost(() => { this.clearClue(); this.showGameLost(); });
   }
 }
