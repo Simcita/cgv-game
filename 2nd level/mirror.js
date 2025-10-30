@@ -7,7 +7,7 @@ export async function addMirror({
   loader = null,
   url = './models/mirror_a.glb',
   position = null,
-  scale = 5,
+  scale = 2,
   makeCollidable = false,
   onProgress = null
 } = {}) {

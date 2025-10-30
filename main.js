@@ -116,9 +116,7 @@ class Game {
       WASD - Move<br>
       Mouse Drag - Rotate Camera<br>
       Mouse Wheel - Zoom<br>
-      Space - Jump<br>
-      C - Toggle First/Third Person<br>
-      P - Push Blocks (Level 2)
+      Space - Jump
     `;
     uiContainer.appendChild(controls);
 
@@ -131,32 +129,25 @@ class Game {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
 
-  // In main.js - fix the animate method
-animate() {
-  requestAnimationFrame(() => this.animate());
+  animate() {
+    requestAnimationFrame(() => this.animate());
 
-  const delta = this.clock.getDelta();
-  const elapsedTime = this.clock.getElapsedTime();
-  const environment = this.levelManager.getCurrentEnvironment();
+    const delta = this.clock.getDelta();
+    const environment = this.levelManager.getCurrentEnvironment();
 
-  if (environment) {
-    // --- CRITICAL FIX: Only update blocks ONCE per frame ---
-    // Remove the environment.updateBlocks call here since it's already called in PlayerController
-    
-    // Update environment
-    if (environment.update && typeof environment.update === 'function') {
+    if (environment) {
+      // Update environment
       environment.update(delta);
-    }
 
-    // Update player controller (this includes block updates)
-    if (this.playerController) {
-      this.playerController.update(delta, elapsedTime);
-    }
+      // Update player controller
+      if (this.playerController) {
+        this.playerController.update(delta);
+      }
 
-    // Render scene
-    this.renderer.render(environment.getScene(), this.camera);
+      // Render scene
+      this.renderer.render(environment.getScene(), this.camera);
+    }
   }
-}
 }
 
 // Start the game when DOM is ready
