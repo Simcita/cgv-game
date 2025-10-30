@@ -1,79 +1,40 @@
-// main.js
-import * as THREE from "three";
-import { PlayerController } from "./js/playerController.js";
-import { LevelManager } from "./js/levelManager.js";
+// Use the ES module build from a CDN
+import * as THREE from 'three';
+import { Environment } from './3rd level/clocktower.js';
+import { PlayerController3 } from './3rd level/playerController3.js';
 
-class Game {
-  constructor() {
-    this.clock = new THREE.Clock();
-    this.camera = null;
-    this.renderer = null;
-    this.playerController = null;
-    this.levelManager = null;
+// Initialize renderer
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
 
-    this.init();
-  }
+// Initialize camera
+const camera = new THREE.PerspectiveCamera(
+  75,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  1000
+);
 
-  init() {
-    // Setup renderer
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    document.body.appendChild(this.renderer.domElement);
+// Initialize environment and player controller
+const environment = new Environment();
+const playerController = new PlayerController3(environment, camera, renderer);
 
-    // Setup camera
-    this.camera = new THREE.PerspectiveCamera(
-      75,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      1000
-    );
+// Load player model and setup animations
+environment.loadPlayerModel()
+  .then((gltf) => {
+    playerController.setupAnimations(gltf);
+  })
+  .catch((error) => {
+    console.error('Error loading player model:', error);
+  });
 
-    // Create player controller (will be initialized with environment later)
-    this.playerController = new PlayerController(
-      null,
-      this.camera,
-      this.renderer
-    );
-
-    // Create level manager
-    this.levelManager = new LevelManager(
-      this.renderer,
-      this.camera,
-      this.playerController
-    );
-
-    // Setup UI
-    this.setupUI();
-
-    // Load initial level
-    this.loadInitialLevel();
-
-    // Handle window resize
-    window.addEventListener("resize", () => this.onWindowResize());
-
-    // Start animation loop
-    this.animate();
-  }
-
-  async loadInitialLevel() {
-    try {
-      await this.levelManager.loadLevel(1); // Start with Level 1 (Garden with trees)
-      console.log("Initial level loaded");
-    } catch (error) {
-      console.error("Error loading initial level:", error);
-    }
-  }
-
-  setupUI() {
-    // Create level selector UI
-    const uiContainer = document.createElement("div");
-    uiContainer.style.position = "fixed";
-    uiContainer.style.top = "20px";
-    uiContainer.style.left = "20px";
-    uiContainer.style.zIndex = "1000";
-    uiContainer.style.fontFamily = "Arial, sans-serif";
+// Handle window resize
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
 
     const title = document.createElement("h3");
     title.textContent = "Select Level:";
