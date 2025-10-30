@@ -1,7 +1,7 @@
 // Use the ES module build from a CDN
 import * as THREE from 'three';
 import { Environment } from './3rd level/clocktower.js';
-import { PlayerController } from './js/playerController.js';
+import { PlayerController3 } from './3rd level/playerController3.js';
 
 // Initialize renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -18,7 +18,7 @@ const camera = new THREE.PerspectiveCamera(
 
 // Initialize environment and player controller
 const environment = new Environment();
-const playerController = new PlayerController(environment, camera, renderer);
+const playerController = new PlayerController3(environment, camera, renderer);
 
 // Load player model and setup animations
 environment.loadPlayerModel()

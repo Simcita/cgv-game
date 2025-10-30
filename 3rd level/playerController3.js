@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export class PlayerController {
+export class PlayerController3 {
   constructor(environment, camera, renderer) {
     this.environment = environment;
     this.camera = camera;
