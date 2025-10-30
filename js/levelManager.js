@@ -100,7 +100,12 @@ export class LevelManager {
     console.log('🐸 Spawning frogs...');
     
     // Spawn frogs that will follow the player
-    this.currentEnvironment.spawnFrogs(6);
+    this.currentEnvironment.spawnFrogs(5);
+
+    console.log('🍎 Creating apple...');
+    
+    // Create the winning apple
+    this.currentEnvironment.createApple();
 
     // Reset camera for outdoor scene
     this.playerController.cameraDistance = 12;
@@ -112,7 +117,8 @@ export class LevelManager {
       console.log('✅ Player positioned at:', player.position);
     }
 
-    console.log("✅ Level 1 (Grassland) loaded - Move around and the frogs will follow you!");
+    console.log("✅ Level 1 (Grassland) loaded!");
+    console.log("🎯 OBJECTIVE: Find the apple and answer the quiz - but don't get caught by the frogs!");
     console.log("📊 Collidables:", this.currentEnvironment.getCollidables().length);
     console.log("🐸 Frogs:", this.currentEnvironment.frogs.length);
   }
