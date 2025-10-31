@@ -1,6 +1,8 @@
+// 1st level/level1Environment.js
 import * as THREE from "three"
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js"
 import { Level1Hitboxes } from "./level1Hitboxes.js"
+import { Level1Enemies } from "./level1Enemies.js"
 
 export class Level1Environment {
   constructor() {
@@ -9,6 +11,7 @@ export class Level1Environment {
     this.player = null
     this.mixer = null
     this.hitboxSystem = null
+    this.enemySystem = null
     this.init()
   }
 
@@ -76,17 +79,9 @@ export class Level1Environment {
     box.userData.isCollisionBox = true
 
     this.scene.add(box)
-    this.collisionBoxes.push(box)
     this.collidables.push(box)
 
     return box
-  }
-
-  toggleCollisionBoxVisibility(visible = true) {
-    this.collisionBoxes.forEach((box) => {
-      box.material.opacity = visible ? 0.3 : 0
-      box.material.wireframe = visible
-    })
   }
 
   addCollidables(collidables = []) {
@@ -109,6 +104,13 @@ export class Level1Environment {
 
           // Animation mixer
           this.mixer = new THREE.AnimationMixer(this.player)
+          
+          // Initialize enemy system after player is loaded
+          this.enemySystem = new Level1Enemies(this.scene, this.player)
+          this.enemySystem.createBook()
+          this.enemySystem.spawnFrogs(4)
+          this.enemySystem.spawnCrocodiles(3)
+          
           resolve(gltf)
         },
         undefined,
@@ -135,17 +137,22 @@ export class Level1Environment {
     return this.mixer
   }
 
-  getCollisionBoxes() {
-    return this.collisionBoxes
-  }
-
   getHitboxSystem() {
     return this.hitboxSystem
+  }
+
+  getEnemySystem() {
+    return this.enemySystem
   }
 
   update(delta) {
     if (this.mixer) {
       this.mixer.update(delta)
+    }
+    
+    // Update enemy system
+    if (this.enemySystem) {
+      this.enemySystem.update(delta)
     }
   }
 }
