@@ -1,4 +1,5 @@
 // 1st level/playerController1.js
+// 1st level/playerController1.js
 import * as THREE from "three"
 
 export class PlayerController1 {
@@ -133,6 +134,15 @@ export class PlayerController1 {
         this.handleSpacePress()
         e.preventDefault()
       }
+
+      // Add pause functionality - ESC or P key
+      if (e.code === "Escape" || e.code === "KeyP") {
+        const enemySystem = this.environment.getEnemySystem()
+        if (enemySystem) {
+          enemySystem.togglePause()
+        }
+        e.preventDefault()
+      }
     })
 
     document.addEventListener("keyup", (e) => {
@@ -185,6 +195,12 @@ export class PlayerController1 {
   }
 
   update(delta) {
+    // Don't update if game is paused
+    const enemySystem = this.environment.getEnemySystem()
+    if (enemySystem && enemySystem.getGameState() !== 'playing') {
+      return
+    }
+    
     this.updatePlayer(delta)
     this.updateCamera()
   }
@@ -342,7 +358,6 @@ export class PlayerController1 {
     if (!collidables || collidables.length === 0) return false
   
     const playerBottom = position.y
-    const playerTop = position.y + this.PLAYER_HEIGHT
   
     // Create player bounding box
     const playerBox = new THREE.Box3().setFromCenterAndSize(
@@ -355,9 +370,8 @@ export class PlayerController1 {
   
       const collidableBox = new THREE.Box3().setFromObject(collidable)
   
-      // Ignore boxes that are clearly *below* the player’s feet (so we can walk on them)
-      const isBelow =
-        collidableBox.max.y <= playerBottom + 0.05 // small margin
+      // Ignore boxes that are clearly *below* the player's feet (so we can walk on them)
+      const isBelow = collidableBox.max.y <= playerBottom + 0.05
       if (isBelow) continue
   
       // Check intersection
