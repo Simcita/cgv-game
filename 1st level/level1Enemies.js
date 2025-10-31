@@ -238,7 +238,7 @@ export class Level1Enemies {
 
   // Update frogs AI - hopping and chasing
   updateFrogs(delta) {
-    if (!this.player || this.gameState !== 'playing') return
+    if (!this.player || this.gameState !== 'playing' || this.quizActive) return
 
     const playerPos = this.player.position
 
@@ -296,7 +296,7 @@ export class Level1Enemies {
 
   // Update crocodiles AI - crawling and chasing
   updateCrocodiles(delta) {
-    if (!this.player || this.gameState !== 'playing') return
+    if (!this.player || this.gameState !== 'playing' || this.quizActive) return
 
     const playerPos = this.player.position
 
@@ -347,7 +347,7 @@ export class Level1Enemies {
 
   // Update book floating animation
   updateBook(delta) {
-    if (!this.book || !this.player || this.gameState !== 'playing') return
+    if (!this.book || !this.player || this.gameState !== 'playing' || this.quizActive) return
 
     const time = Date.now() * 0.001
     this.book.position.y = this.book.userData.startY + 
