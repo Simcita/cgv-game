@@ -1,7 +1,7 @@
 // main.js
 import * as THREE from "three"
-import { Level1Environment } from "./1st level/level1Environment.js"
-import { PlayerController1 } from "./1st level/playerController1.js"
+import { Level1Environment } from "./1st level/core/level1Environment.js"
+import { PlayerController1 } from "./1st level/entities/playerController1.js"
 import { Environment as ClocktowerEnv } from "./3rd level/clocktower.js"
 import { PlayerController3 } from "./3rd level/playerController3.js"
 
