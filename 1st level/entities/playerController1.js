@@ -1,5 +1,3 @@
-// 1st level/playerController1.js
-// 1st level/playerController1.js
 import * as THREE from "three"
 
 export class PlayerController1 {
@@ -135,8 +133,7 @@ export class PlayerController1 {
         e.preventDefault()
       }
 
-      // Add pause functionality - ESC or P key
-      if (e.code === "Escape" || e.code === "KeyP") {
+      if (e.code === "Escape") {
         const enemySystem = this.environment.getEnemySystem()
         if (enemySystem) {
           enemySystem.togglePause()
@@ -195,12 +192,6 @@ export class PlayerController1 {
   }
 
   update(delta) {
-    // Don't update if game is paused
-    const enemySystem = this.environment.getEnemySystem()
-    if (enemySystem && enemySystem.getGameState() !== 'playing') {
-      return
-    }
-    
     this.updatePlayer(delta)
     this.updateCamera()
   }
@@ -209,10 +200,14 @@ export class PlayerController1 {
     const player = this.environment.getPlayer()
     if (!player) return
 
+    const enemySystem = this.environment.getEnemySystem()
+    if (enemySystem && enemySystem.isPaused) {
+      return
+    }
+
     const speed = 5
     const move = new THREE.Vector3()
 
-    // Capture input
     if (this.keys["KeyW"]) move.z -= 1
     if (this.keys["KeyS"]) move.z += 1
     if (this.keys["KeyA"]) move.x -= 1
@@ -229,7 +224,6 @@ export class PlayerController1 {
     const newPosition = player.position.clone().add(move)
 
     if (isMoving && this.checkCollision(newPosition)) {
-      // Try sliding along walls by testing X and Z separately
       const testX = originalPosition.clone()
       testX.x = newPosition.x
       const testZ = originalPosition.clone()
@@ -242,7 +236,6 @@ export class PlayerController1 {
         player.position.z = newPosition.z
       }
     } else {
-      // No collision, apply full movement
       player.position.add(move)
     }
 
@@ -252,7 +245,6 @@ export class PlayerController1 {
     const groundInfo = this.getGroundLevel(player.position.x, newY, player.position.z)
 
     if (this.velocityY < 0) {
-      // Falling down - check if landing on something
       if (newY <= groundInfo.groundY) {
         if (!this.onGround) {
           this.playOverlayAction("landing", { fadeIn: 0.06, fadeOut: 0.12, stopAfter: 0.5 })
@@ -267,7 +259,6 @@ export class PlayerController1 {
     } else if (this.velocityY > 0) {
       const ceilingY = this.getCeilingLevel(player.position.x, newY, player.position.z)
       if (newY + this.PLAYER_HEIGHT >= ceilingY) {
-        // Hit ceiling
         player.position.y = ceilingY - this.PLAYER_HEIGHT
         this.velocityY = 0
       } else {
@@ -278,48 +269,225 @@ export class PlayerController1 {
       player.position.y = newY
     }
 
-    // Base animations
     if (this.onGround) {
       if (isMoving) this.playBaseAction("running")
       else this.playBaseAction("idle")
     }
 
-    // Face movement direction
     if (isMoving) {
       const angle = Math.atan2(move.x, move.z)
       player.rotation.y = angle
     }
   }
 
+  checkCollision(position) {
+    const collidables = this.environment.getCollidables()
+    if (!collidables || collidables.length === 0) return false
+
+    const playerBottom = position.y
+
+    for (const collidable of collidables) {
+      if (!collidable || !collidable.geometry) continue
+
+      const hitboxType = collidable.userData.hitboxType || "box"
+
+      if (hitboxType === "box") {
+        const isBelow = this.isHitboxBelowPlayer(collidable, playerBottom)
+        if (isBelow) continue
+
+        if (this.checkOBBCollision(position, collidable)) {
+          return true
+        }
+      } else if (hitboxType === "wedge") {
+        const isBelow = this.isHitboxBelowPlayer(collidable, playerBottom)
+        if (isBelow) continue
+
+        // Allow movement if on the ramp surface
+        const groundInfo = this.getGroundLevel(position.x, position.y, position.z)
+        if (Math.abs(position.y - groundInfo.groundY) < 0.5) {
+          continue
+        }
+
+        if (this.checkOBBCollision(position, collidable)) {
+          return true
+        }
+      } else if (hitboxType === "circular") {
+        if (this.checkCylinderCollision(position, collidable)) {
+          return true
+        }
+      }
+    }
+
+    return false
+  }
+
+  isHitboxBelowPlayer(collidable, playerBottom) {
+    const box = new THREE.Box3().setFromObject(collidable)
+    return box.max.y <= playerBottom + 0.05
+  }
+
+  checkOBBCollision(playerPosition, hitbox) {
+    const geometry = hitbox.geometry
+    geometry.computeBoundingBox()
+    const localBox = geometry.boundingBox
+
+    const worldToLocal = new THREE.Matrix4()
+    worldToLocal.copy(hitbox.matrixWorld).invert()
+
+    const localPlayerPos = new THREE.Vector3(
+      playerPosition.x,
+      playerPosition.y + this.PLAYER_HEIGHT / 2,
+      playerPosition.z,
+    )
+    localPlayerPos.applyMatrix4(worldToLocal)
+
+    const playerLocalBox = new THREE.Box3().setFromCenterAndSize(
+      localPlayerPos,
+      new THREE.Vector3(this.PLAYER_HALF_WIDTH * 2, this.PLAYER_HEIGHT, this.PLAYER_HALF_WIDTH * 2),
+    )
+
+    return playerLocalBox.intersectsBox(localBox)
+  }
+
+  checkCylinderCollision(playerPosition, cylinder) {
+    const cylinderRadius = cylinder.userData.radius || 1
+    const cylinderHeight = cylinder.userData.height || 2
+
+    const worldToLocal = new THREE.Matrix4()
+    worldToLocal.copy(cylinder.matrixWorld).invert()
+
+    const localPlayerPos = new THREE.Vector3(playerPosition.x, playerPosition.y, playerPosition.z)
+    localPlayerPos.applyMatrix4(worldToLocal)
+
+    const distance2D = Math.sqrt(localPlayerPos.x * localPlayerPos.x + localPlayerPos.z * localPlayerPos.z)
+
+    if (distance2D >= cylinderRadius + this.PLAYER_HALF_WIDTH) {
+      return false
+    }
+
+    const cylinderBottom = -cylinderHeight / 2
+    const cylinderTop = cylinderHeight / 2
+
+    const playerBottom = localPlayerPos.y
+    const playerTop = localPlayerPos.y + this.PLAYER_HEIGHT
+
+    return playerTop >= cylinderBottom && playerBottom <= cylinderTop
+  }
+
   getGroundLevel(x, y, z) {
     const collidables = this.environment.getCollidables()
-    let highestGround = 0 // Default ground plane
+    let highestGround = 0
 
     if (!collidables || collidables.length === 0) {
       return { groundY: highestGround }
     }
 
-    // Check all hitboxes to find the highest one the player is standing on
     for (const collidable of collidables) {
       if (!collidable || !collidable.geometry) continue
 
-      const box = new THREE.Box3().setFromObject(collidable)
+      const hitboxType = collidable.userData.hitboxType || "box"
 
-      // Check if player is above this box horizontally
-      if (
-        x >= box.min.x - this.PLAYER_HALF_WIDTH &&
-        x <= box.max.x + this.PLAYER_HALF_WIDTH &&
-        z >= box.min.z - this.PLAYER_HALF_WIDTH &&
-        z <= box.max.z + this.PLAYER_HALF_WIDTH
-      ) {
-        // Check if player is falling onto this box
-        if (y <= box.max.y && y >= box.min.y) {
-          highestGround = Math.max(highestGround, box.max.y)
+      if (hitboxType === "box") {
+        const groundY = this.getBoxGroundLevel(x, y, z, collidable)
+        if (groundY !== null) {
+          highestGround = Math.max(highestGround, groundY)
+        }
+      } else if (hitboxType === "wedge") {
+        const groundY = this.getWedgeGroundLevel(x, y, z, collidable)
+        if (groundY !== null) {
+          highestGround = Math.max(highestGround, groundY)
+        }
+      } else if (hitboxType === "circular" && collidable.userData.canStandOn) {
+        const groundY = this.getCylinderGroundLevel(x, y, z, collidable)
+        if (groundY !== null) {
+          highestGround = Math.max(highestGround, groundY)
         }
       }
     }
 
     return { groundY: highestGround }
+  }
+
+  getBoxGroundLevel(x, y, z, box) {
+    const worldToLocal = new THREE.Matrix4()
+    worldToLocal.copy(box.matrixWorld).invert()
+
+    const localPos = new THREE.Vector3(x, y, z)
+    localPos.applyMatrix4(worldToLocal)
+
+    const geometry = box.geometry
+    geometry.computeBoundingBox()
+    const localBox = geometry.boundingBox
+
+    if (
+      localPos.x >= localBox.min.x - this.PLAYER_HALF_WIDTH &&
+      localPos.x <= localBox.max.x + this.PLAYER_HALF_WIDTH &&
+      localPos.z >= localBox.min.z - this.PLAYER_HALF_WIDTH &&
+      localPos.z <= localBox.max.z + this.PLAYER_HALF_WIDTH
+    ) {
+      if (localPos.y <= localBox.max.y && localPos.y >= localBox.min.y) {
+        const topPoint = new THREE.Vector3(localPos.x, localBox.max.y, localPos.z)
+        topPoint.applyMatrix4(box.matrixWorld)
+        return topPoint.y
+      }
+    }
+
+    return null
+  }
+
+  getWedgeGroundLevel(x, y, z, wedge) {
+    const wedgeSize = wedge.userData.size
+
+    const worldToLocal = new THREE.Matrix4()
+    worldToLocal.copy(wedge.matrixWorld).invert()
+
+    const localPos = new THREE.Vector3(x, y, z)
+    localPos.applyMatrix4(worldToLocal)
+
+    const halfWidth = wedgeSize.width / 2
+    const halfDepth = wedgeSize.depth / 2
+
+    if (
+      localPos.x >= -halfWidth - this.PLAYER_HALF_WIDTH &&
+      localPos.x <= halfWidth + this.PLAYER_HALF_WIDTH &&
+      localPos.z >= -halfDepth - this.PLAYER_HALF_WIDTH &&
+      localPos.z <= halfDepth + this.PLAYER_HALF_WIDTH
+    ) {
+      const normalizedZ = (localPos.z + halfDepth) / wedgeSize.depth
+      const rampHeight = normalizedZ * wedgeSize.height
+
+      if (localPos.y <= rampHeight + 0.5 && localPos.y >= rampHeight - 1) {
+        const rampPoint = new THREE.Vector3(localPos.x, rampHeight, localPos.z)
+        rampPoint.applyMatrix4(wedge.matrixWorld)
+        return rampPoint.y
+      }
+    }
+
+    return null
+  }
+
+  getCylinderGroundLevel(x, y, z, cylinder) {
+    const cylinderRadius = cylinder.userData.radius || 1
+    const cylinderHeight = cylinder.userData.height || 2
+
+    const worldToLocal = new THREE.Matrix4()
+    worldToLocal.copy(cylinder.matrixWorld).invert()
+
+    const localPos = new THREE.Vector3(x, y, z)
+    localPos.applyMatrix4(worldToLocal)
+
+    const distance2D = Math.sqrt(localPos.x * localPos.x + localPos.z * localPos.z)
+
+    if (distance2D < cylinderRadius) {
+      const topY = cylinderHeight / 2
+      if (localPos.y <= topY && localPos.y >= topY - 1) {
+        const topPoint = new THREE.Vector3(localPos.x, topY, localPos.z)
+        topPoint.applyMatrix4(cylinder.matrixWorld)
+        return topPoint.y
+      }
+    }
+
+    return null
   }
 
   getCeilingLevel(x, y, z) {
@@ -330,22 +498,15 @@ export class PlayerController1 {
       return lowestCeiling
     }
 
-    // Check all hitboxes to find if player is jumping into one
     for (const collidable of collidables) {
       if (!collidable || !collidable.geometry) continue
 
-      const box = new THREE.Box3().setFromObject(collidable)
+      const hitboxType = collidable.userData.hitboxType || "box"
 
-      // Check if player is below this box horizontally
-      if (
-        x >= box.min.x - this.PLAYER_HALF_WIDTH &&
-        x <= box.max.x + this.PLAYER_HALF_WIDTH &&
-        z >= box.min.z - this.PLAYER_HALF_WIDTH &&
-        z <= box.max.z + this.PLAYER_HALF_WIDTH
-      ) {
-        // Check if player's head would hit this box
-        if (y + this.PLAYER_HEIGHT >= box.min.y && y < box.min.y) {
-          lowestCeiling = Math.min(lowestCeiling, box.min.y)
+      if (hitboxType === "box" || hitboxType === "wedge") {
+        const ceilingY = this.getBoxCeilingLevel(x, y, z, collidable)
+        if (ceilingY !== null) {
+          lowestCeiling = Math.min(lowestCeiling, ceilingY)
         }
       }
     }
@@ -353,36 +514,33 @@ export class PlayerController1 {
     return lowestCeiling
   }
 
-  checkCollision(position) {
-    const collidables = this.environment.getCollidables()
-    if (!collidables || collidables.length === 0) return false
-  
-    const playerBottom = position.y
-  
-    // Create player bounding box
-    const playerBox = new THREE.Box3().setFromCenterAndSize(
-      new THREE.Vector3(position.x, position.y + this.PLAYER_HEIGHT / 2, position.z),
-      new THREE.Vector3(this.PLAYER_HALF_WIDTH * 2, this.PLAYER_HEIGHT, this.PLAYER_HALF_WIDTH * 2)
-    )
-  
-    for (const collidable of collidables) {
-      if (!collidable || !collidable.geometry) continue
-  
-      const collidableBox = new THREE.Box3().setFromObject(collidable)
-  
-      // Ignore boxes that are clearly *below* the player's feet (so we can walk on them)
-      const isBelow = collidableBox.max.y <= playerBottom + 0.05
-      if (isBelow) continue
-  
-      // Check intersection
-      if (playerBox.intersectsBox(collidableBox)) {
-        return true
+  getBoxCeilingLevel(x, y, z, box) {
+    const worldToLocal = new THREE.Matrix4()
+    worldToLocal.copy(box.matrixWorld).invert()
+
+    const localPos = new THREE.Vector3(x, y, z)
+    localPos.applyMatrix4(worldToLocal)
+
+    const geometry = box.geometry
+    geometry.computeBoundingBox()
+    const localBox = geometry.boundingBox
+
+    if (
+      localPos.x >= localBox.min.x - this.PLAYER_HALF_WIDTH &&
+      localPos.x <= localBox.max.x + this.PLAYER_HALF_WIDTH &&
+      localPos.z >= localBox.min.z - this.PLAYER_HALF_WIDTH &&
+      localPos.z <= localBox.max.z + this.PLAYER_HALF_WIDTH
+    ) {
+      if (localPos.y + this.PLAYER_HEIGHT >= localBox.min.y && localPos.y < localBox.min.y) {
+        const bottomPoint = new THREE.Vector3(localPos.x, localBox.min.y, localPos.z)
+        bottomPoint.applyMatrix4(box.matrixWorld)
+        return bottomPoint.y
       }
     }
-  
-    return false
+
+    return null
   }
-  
+
   updateCamera() {
     const player = this.environment.getPlayer()
     if (!player) return

@@ -1,8 +1,9 @@
-// 1st level/level1Environment.js
 import * as THREE from "three"
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js"
-import { Level1Hitboxes } from "./level1Hitboxes.js"
-import { Level1Enemies } from "./level1Enemies.js"
+import { Level1Hitboxes } from "../collision/level1Hitboxes.js"
+import { Level1Enemies } from "../entities/level1Enemies.js"
+import { CoordinateDisplay } from "../ui/coordinateDisplay.js"
+import { PauseMenu } from "../ui/pauseMenu.js"
 
 export class Level1Environment {
   constructor() {
@@ -12,14 +13,14 @@ export class Level1Environment {
     this.mixer = null
     this.hitboxSystem = null
     this.enemySystem = null
+    this.coordinateDisplay = null
+    this.pauseMenu = null
     this.init()
   }
 
   init() {
-    // Sky blue background
     this.scene.background = new THREE.Color(0x87ceeb)
 
-    // Lights
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2)
     hemiLight.position.set(0, 200, 0)
     this.scene.add(hemiLight)
@@ -64,26 +65,6 @@ export class Level1Environment {
     })
   }
 
-  addCollisionBox(position, size) {
-    // Create invisible box geometry
-    const geometry = new THREE.BoxGeometry(size.x, size.y, size.z)
-    const material = new THREE.MeshBasicMaterial({
-      color: 0xff0000,
-      transparent: true,
-      opacity: 0, // Invisible by default
-      wireframe: false,
-    })
-    const box = new THREE.Mesh(geometry, material)
-    box.position.set(position.x, position.y, position.z)
-    box.name = "collisionBox"
-    box.userData.isCollisionBox = true
-
-    this.scene.add(box)
-    this.collidables.push(box)
-
-    return box
-  }
-
   addCollidables(collidables = []) {
     for (const c of collidables) {
       if (c && !this.collidables.includes(c)) this.collidables.push(c)
@@ -102,15 +83,17 @@ export class Level1Environment {
           this.player.name = "player"
           this.scene.add(this.player)
 
-          // Animation mixer
           this.mixer = new THREE.AnimationMixer(this.player)
-          
-          // Initialize enemy system after player is loaded
-          this.enemySystem = new Level1Enemies(this.scene, this.player)
+
+          this.coordinateDisplay = new CoordinateDisplay(this.player)
+
+          this.enemySystem = new Level1Enemies(this.scene, this.player, this.collidables)
           this.enemySystem.createBook()
           this.enemySystem.spawnFrogs(4)
           this.enemySystem.spawnCrocodiles(3)
-          
+
+          this.pauseMenu = new PauseMenu(this.enemySystem)
+
           resolve(gltf)
         },
         undefined,
@@ -145,12 +128,23 @@ export class Level1Environment {
     return this.enemySystem
   }
 
+  getCoordinateDisplay() {
+    return this.coordinateDisplay
+  }
+
+  getPauseMenu() {
+    return this.pauseMenu
+  }
+
   update(delta) {
     if (this.mixer) {
       this.mixer.update(delta)
     }
-    
-    // Update enemy system
+
+    if (this.coordinateDisplay) {
+      this.coordinateDisplay.update()
+    }
+
     if (this.enemySystem) {
       this.enemySystem.update(delta)
     }
