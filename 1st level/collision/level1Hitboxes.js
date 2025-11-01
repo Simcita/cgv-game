@@ -490,11 +490,9 @@ export class Level1Hitboxes {
 
     mesh.userData.isCollisionBox = true
     mesh.userData.hitboxType = "box"
-    mesh.userData.wireframe = wireframe
     mesh.name = "hitbox"
 
     this.scene.add(mesh)
-    this.scene.add(wireframe)
 
     this.hitboxes.push(mesh)
 
@@ -527,11 +525,9 @@ export class Level1Hitboxes {
     mesh.userData.radius = radius
     mesh.userData.height = height
     mesh.userData.canStandOn = canStandOn
-    mesh.userData.wireframe = wireframe
     mesh.name = "hitbox-circular"
 
     this.scene.add(mesh)
-    this.scene.add(wireframe)
 
     this.hitboxes.push(mesh)
 
@@ -575,11 +571,9 @@ export class Level1Hitboxes {
     mesh.userData.isCollisionBox = true
     mesh.userData.hitboxType = "wedge"
     mesh.userData.size = size
-    mesh.userData.wireframe = wireframe
     mesh.name = "hitbox-wedge"
 
     this.scene.add(mesh)
-    this.scene.add(wireframe)
 
     this.hitboxes.push(mesh)
 
