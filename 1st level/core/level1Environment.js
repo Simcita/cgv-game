@@ -164,6 +164,7 @@ export class Level1Environment {
         if (gameState === "playing" && this.enemySystem.getBook()) {
           // Point to book during gameplay
           this.compass.setTarget(this.enemySystem.getBook())
+          
           this.compass.update()
         } else if (gameState === "won" && this.enemySystem.getPortal()) {
           // Point to portal after winning
