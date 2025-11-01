@@ -240,9 +240,9 @@ export class Level1Enemies {
   }
 
   enterPortal() {
-    console.log("Entering portal...")
+    console.log("Entering portal to Clocktower...")
     
-    // Dispatch event to load next level
+    // Dispatch event to load Level 3 (Clocktower) - skipping Level 2
     window.dispatchEvent(new CustomEvent("loadLevel", { detail: { level: 2 } }))
   }
 
