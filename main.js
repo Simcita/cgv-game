@@ -1,9 +1,16 @@
 // main.js
 import * as THREE from "three"
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js"
 import { Level1Environment } from "./1st level/core/level1Environment.js"
 import { PlayerController1 } from "./1st level/entities/playerController1.js"
+import { Environment as Level2Environment } from "./js/environment.js"
+import { PlayerController3 as PlayerController2 } from "./3rd level/playerController3.js"
 import { Environment as ClocktowerEnv } from "./3rd level/clocktower.js"
 import { PlayerController3 } from "./3rd level/playerController3.js"
+import { createChildBedroom } from "./2nd level/usingmodels.js"
+import { addMirror } from "./2nd level/mirror.js"
+import { addTrain } from "./2nd level/train.js"
+import { train, createWall } from "./2nd level/terrain.js"
 
 class Game {
   constructor() {
@@ -29,6 +36,12 @@ class Game {
     // Handle window resize
     window.addEventListener("resize", () => this.onWindowResize())
 
+    // Listen for level load events from portal
+    window.addEventListener("loadLevel", (e) => {
+      const levelNumber = e.detail.level
+      this.loadLevel(levelNumber)
+    })
+
     // Load Level 1 by default
     this.loadLevel(1)
 
@@ -47,6 +60,24 @@ class Game {
           scene.remove(scene.children[0])
         }
       }
+
+      // Dispose of any UI elements from previous level
+      if (this.currentEnvironment.getCompass) {
+        const compass = this.currentEnvironment.getCompass()
+        if (compass) compass.dispose()
+      }
+      if (this.currentEnvironment.getCoordinateDisplay) {
+        const coordDisplay = this.currentEnvironment.getCoordinateDisplay()
+        if (coordDisplay) coordDisplay.dispose()
+      }
+      if (this.currentEnvironment.getPauseMenu) {
+        const pauseMenu = this.currentEnvironment.getPauseMenu()
+        if (pauseMenu) pauseMenu.dispose()
+      }
+      if (this.currentEnvironment.getEnemySystem) {
+        const enemySystem = this.currentEnvironment.getEnemySystem()
+        if (enemySystem) enemySystem.dispose()
+      }
     }
 
     // Remove old event listeners by recreating player controller
@@ -56,6 +87,9 @@ class Game {
       switch (levelNumber) {
         case 1:
           await this.loadLevel1()
+          break
+        case 2:
+          await this.loadLevel2()
           break
         case 3:
           await this.loadLevel3()
@@ -89,17 +123,105 @@ class Game {
 
     // Reset camera distance
     this.currentPlayerController.cameraDistance = 10
+  }
 
-    // this.currentEnvironment.addCollisionBox(
-    //   { x: 5, y: 1, z: 0 },  // position
-    //   { x: 2, y: 2, z: 2 }   // size
-    // )
-    // this.currentEnvironment.addCollisionBox(
-    //   { x: -5, y: 1, z: 5 },
-    //   { x: 3, y: 2, z: 3 }
-    // )
+  async loadLevel2() {
+    // Bedroom Scene
+    this.currentEnvironment = new Level2Environment()
+    this.currentPlayerController = new PlayerController2(this.currentEnvironment, this.camera, this.renderer)
 
-    // this.currentEnvironment.toggleCollisionBoxVisibility(true)
+    // Load player
+    const gltf = await this.currentEnvironment.loadPlayerModel()
+    this.currentPlayerController.setupAnimations(gltf)
+
+    // Load bedroom
+    const { blocks } = train(this.currentEnvironment.getScene())
+
+    // Add blocks as collidables
+    const blockCollidables = []
+    blocks.traverse((child) => {
+      if (child.isMesh && child.visible && child.geometry) {
+        blockCollidables.push(child)
+      }
+    })
+    this.currentEnvironment.addCollidables(blockCollidables)
+
+    const { roomGroup, collidables, roomBox } = await createChildBedroom({
+      scene: this.currentEnvironment.getScene(),
+      THREE: THREE,
+      loader: new GLTFLoader(),
+      url: "./models/Stewie.glb",
+    })
+
+    this.currentEnvironment.addCollidables(collidables)
+    this.currentEnvironment.setRoomBounds(roomBox)
+
+    const player = this.currentEnvironment.getPlayer()
+    if (player) {
+      // Get the room's center and adjust for room position
+      const center = roomBox.getCenter(new THREE.Vector3())
+      // Place player in the middle of the room, slightly above floor to prevent clipping
+      player.position.set(
+        center.x, // Center X (left/right)
+        roomBox.min.y + 0.5, // Floor level + small offset to prevent clipping
+        center.z + 15
+      )
+    }
+
+    this.currentPlayerController.cameraDistance = Math.min(
+      this.currentPlayerController.cameraDistance,
+      Math.max(3, roomBox.getSize(new THREE.Vector3()).length() * 0.08)
+    )
+
+    // Add train
+    const { trainGroup } = await addTrain({
+      scene: this.currentEnvironment.getScene(),
+      loader: new GLTFLoader(),
+      makeCollidable: true,
+    })
+
+    // Instead of adding the whole group, add individual mesh collidables
+    const trainCollidables = []
+    trainGroup.traverse((child) => {
+      // Only add meshes that are visible and have actual geometry
+      if (child.isMesh && child.visible && child.geometry) {
+        trainCollidables.push(child)
+      }
+    })
+    this.currentEnvironment.addCollidables(trainCollidables)
+
+    // Add mirror
+    const { mirrorGroup } = await addMirror({
+      scene: this.currentEnvironment.getScene(),
+      loader: new GLTFLoader(),
+      url: "./models/mirror_a.glb",
+    })
+
+    // Add individual mirror mesh collidables
+    const mirrorCollidables = []
+    mirrorGroup.traverse((child) => {
+      // Only add meshes that are visible and have actual geometry
+      if (child.isMesh && child.visible && child.geometry) {
+        mirrorCollidables.push(child)
+      }
+    })
+    this.currentEnvironment.addCollidables(mirrorCollidables)
+
+    // Add fourth wall
+    const wallNearMirror = createWall(
+      32,
+      35,
+      0.2,
+      20,
+      1.5,
+      6.5,
+      null,
+      "2nd level/Textures/20251015_2213_Blue Solar System Texture_simple_compose_01k7mr2ssafgj912vz5pqzw3kd.png"
+    )
+    this.currentEnvironment.getScene().add(wallNearMirror)
+    this.currentEnvironment.addCollidables([wallNearMirror])
+
+    console.log("Level 2 (Bedroom) loaded")
   }
 
   async loadLevel3() {
@@ -133,6 +255,7 @@ class Game {
 
     const levels = [
       { num: 1, name: "Green Plane" },
+      { num: 2, name: "Bedroom" },
       { num: 3, name: "Clock Tower" },
     ]
 
@@ -165,7 +288,9 @@ class Game {
       WASD - Move<br>
       Mouse Drag - Rotate Camera<br>
       Mouse Wheel - Zoom<br>
-      Space - Jump
+      Space - Jump<br>
+      E - Enter Portal (Level 1)<br>
+      ESC - Pause (Level 1)
     `
     uiContainer.appendChild(controls)
 
