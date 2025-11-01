@@ -4,6 +4,7 @@ import { Level1Hitboxes } from "../collision/level1Hitboxes.js"
 import { Level1Enemies } from "../entities/level1Enemies.js"
 import { CoordinateDisplay } from "../ui/coordinateDisplay.js"
 import { PauseMenu } from "../ui/pauseMenu.js"
+import { Compass } from "../ui/compass.js"
 
 export class Level1Environment {
   constructor() {
@@ -15,6 +16,7 @@ export class Level1Environment {
     this.enemySystem = null
     this.coordinateDisplay = null
     this.pauseMenu = null
+    this.compass = null
     this.init()
   }
 
@@ -94,6 +96,9 @@ export class Level1Environment {
 
           this.pauseMenu = new PauseMenu(this.enemySystem)
 
+          // Create compass and set initial target to the book
+          this.compass = new Compass(this.player, this.enemySystem.getBook())
+
           resolve(gltf)
         },
         undefined,
@@ -136,6 +141,10 @@ export class Level1Environment {
     return this.pauseMenu
   }
 
+  getCompass() {
+    return this.compass
+  }
+
   update(delta) {
     if (this.mixer) {
       this.mixer.update(delta)
@@ -147,6 +156,21 @@ export class Level1Environment {
 
     if (this.enemySystem) {
       this.enemySystem.update(delta)
+
+      // Update compass target based on game state
+      if (this.compass) {
+        const gameState = this.enemySystem.getGameState()
+        
+        if (gameState === "playing" && this.enemySystem.getBook()) {
+          // Point to book during gameplay
+          this.compass.setTarget(this.enemySystem.getBook())
+          this.compass.update()
+        } else if (gameState === "won" && this.enemySystem.getPortal()) {
+          // Point to portal after winning
+          this.compass.setTarget(this.enemySystem.getPortal().getPosition())
+          this.compass.update()
+        }
+      }
     }
   }
 }

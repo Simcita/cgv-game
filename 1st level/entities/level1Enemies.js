@@ -1,5 +1,6 @@
 import * as THREE from "three"
 import { Pathfinding } from "../collision/pathfinding.js"
+import { Portal } from "../entities/portal.js"
 
 export class Level1Enemies {
   constructor(scene, player, collidables = []) {
@@ -10,6 +11,7 @@ export class Level1Enemies {
     this.frogs = []
     this.crocodiles = []
     this.book = null
+    this.portal = null
     this.gameState = "playing"
     this.quizActive = false
     this.currentQuestion = null
@@ -17,6 +19,7 @@ export class Level1Enemies {
     this.hintTimer = 0
     this.hintInterval = 15
     this.isPaused = false
+    this.portalKeyListener = null
   }
 
   createFrog() {
@@ -211,6 +214,38 @@ export class Level1Enemies {
     console.log(`Book hidden at (${randomX.toFixed(1)}, ${randomZ.toFixed(1)})`)
   }
 
+  createPortal() {
+    // Spawn portal near player but not too close
+    const spawnDistance = 8
+    const angle = Math.random() * Math.PI * 2
+    const portalX = this.player.position.x + Math.cos(angle) * spawnDistance
+    const portalZ = this.player.position.z + Math.sin(angle) * spawnDistance
+
+    this.portal = new Portal(this.scene, {
+      x: portalX,
+      y: 0,
+      z: portalZ,
+    })
+    this.portal.create()
+
+    // Setup E key listener for portal interaction
+    this.portalKeyListener = (e) => {
+      if (e.code === "KeyE" && this.portal && this.portal.isPlayerInRange()) {
+        this.enterPortal()
+      }
+    }
+    document.addEventListener("keydown", this.portalKeyListener)
+
+    console.log(`Portal spawned at (${portalX.toFixed(1)}, ${portalZ.toFixed(1)})`)
+  }
+
+  enterPortal() {
+    console.log("Entering portal to Clocktower...")
+    
+    // Dispatch event to load Level 3 (Clocktower) - skipping Level 2
+    window.dispatchEvent(new CustomEvent("loadLevel", { detail: { level: 2 } }))
+  }
+
   updateFrogs(delta) {
     if (!this.player || this.gameState !== "playing" || this.quizActive) return
 
@@ -316,6 +351,12 @@ export class Level1Enemies {
     if (distance < 2) {
       this.onBookFound()
     }
+  }
+
+  updatePortal(delta) {
+    if (!this.portal || !this.player) return
+
+    this.portal.update(delta, this.player.position)
   }
 
   updateHints(delta) {
@@ -563,52 +604,22 @@ export class Level1Enemies {
 
   onWin(overlay) {
     this.gameState = "won"
-    console.log("Player wins!")
+    this.quizActive = false
+    console.log("Player wins! Spawning portal...")
 
-    overlay.querySelector("div").innerHTML = `
-      <h2 style="color: #4CAF50; margin-top: 0; font-size: 36px; text-align: center;">
-        CORRECT!
-      </h2>
-      <p style="font-size: 20px; color: #333; margin: 20px 0; text-align: center;">
-        You found the book and answered correctly!
-      </p>
-      <button id="next-level-btn" style="
-        display: block;
-        width: 100%;
-        margin: 10px auto;
-        padding: 15px;
-        font-size: 18px;
-        cursor: pointer;
-        border: none;
-        border-radius: 8px;
-        background: #4CAF50;
-        color: white;
-        font-weight: bold;
-      ">Go to Level 2</button>
-      <button id="play-again-btn" style="
-        display: block;
-        width: 100%;
-        margin: 10px auto 0;
-        padding: 15px;
-        font-size: 18px;
-        cursor: pointer;
-        border: none;
-        border-radius: 8px;
-        background: #2196F3;
-        color: white;
-        font-weight: bold;
-      ">Play Level 1 Again</button>
-    `
+    // Remove the book
+    if (this.book) {
+      this.scene.remove(this.book)
+      this.book = null
+    }
 
-    document.getElementById("next-level-btn").addEventListener("click", () => {
-      overlay.remove()
-      window.dispatchEvent(new CustomEvent("loadLevel", { detail: { level: 2 } }))
-    })
+    overlay.remove()
 
-    document.getElementById("play-again-btn").addEventListener("click", () => {
-      this.resetGame()
-      overlay.remove()
-    })
+    // Spawn portal
+    this.createPortal()
+
+    // Show success message
+    this.displayMessage("Portal opened! Press E to enter and go to Level 2", 5000)
   }
 
   onPlayerCaught(enemyType) {
@@ -685,6 +696,15 @@ export class Level1Enemies {
       this.book = null
     }
 
+    if (this.portal) {
+      this.portal.remove()
+      this.portal = null
+      if (this.portalKeyListener) {
+        document.removeEventListener("keydown", this.portalKeyListener)
+        this.portalKeyListener = null
+      }
+    }
+
     this.frogs.forEach((frog) => this.scene.remove(frog))
     this.frogs = []
 
@@ -718,7 +738,17 @@ export class Level1Enemies {
       this.book = null
     }
 
-    const overlays = document.querySelectorAll("#quiz-overlay, #pause-overlay, #hint-message")
+    if (this.portal) {
+      this.portal.remove()
+      this.portal = null
+    }
+
+    if (this.portalKeyListener) {
+      document.removeEventListener("keydown", this.portalKeyListener)
+      this.portalKeyListener = null
+    }
+
+    const overlays = document.querySelectorAll("#quiz-overlay, #pause-overlay, #hint-message, #portal-prompt")
     overlays.forEach((o) => o.remove())
   }
 
@@ -730,6 +760,8 @@ export class Level1Enemies {
       this.updateCrocodiles(delta)
       this.updateBook(delta)
       this.updateHints(delta)
+    } else if (this.gameState === "won") {
+      this.updatePortal(delta)
     }
   }
 
@@ -752,6 +784,10 @@ export class Level1Enemies {
 
   getBook() {
     return this.book
+  }
+
+  getPortal() {
+    return this.portal
   }
 
   togglePause() {
