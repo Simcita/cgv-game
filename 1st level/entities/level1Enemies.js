@@ -20,6 +20,11 @@ export class Level1Enemies {
     this.hintInterval = 15
     this.isPaused = false
     this.portalKeyListener = null
+    
+    // Multi-stage quiz system
+    this.questionsAnsweredCorrectly = 0
+    this.totalQuestionsRequired = 3
+    this.usedQuestions = [] // Track used questions to avoid repeats
   }
 
   createFrog() {
@@ -460,32 +465,68 @@ export class Level1Enemies {
     `
 
     const questions = [
-      {
-        question: "What do plants need to grow?",
-        answers: ["Only water", "Sunlight, water, and air", "Just soil", "Nothing"],
-        correct: 1,
-      },
-      {
-        question: "Which of these is a living thing?",
-        answers: ["Rock", "Tree", "Cloud", "River"],
-        correct: 1,
-      },
-      {
-        question: "What is the largest planet in our solar system?",
-        answers: ["Earth", "Mars", "Jupiter", "Saturn"],
-        correct: 2,
-      },
-      {
-        question: "What do bees collect from flowers?",
-        answers: ["Water", "Nectar", "Leaves", "Seeds"],
-        correct: 1,
-      },
-      {
-        question: "How many legs does a spider have?",
-        answers: ["6", "8", "10", "12"],
-        correct: 1,
-      },
-    ]
+  {
+    question: "I speak without a mouth and hear without ears. I have nobody, but I come alive with wind. What am I?",
+    answers: ["A shadow", "An echo", "A whistle", "A ghost"],
+    correct: 1,
+  },
+  {
+    question: "The more of this there is, the less you see. What is it?",
+    answers: ["Light", "Fog", "Darkness", "Silence"],
+    correct: 2,
+  },
+  {
+    question: "I have keys but no locks. I have space but no room. You can enter, but you can't go outside. What am I?",
+    answers: ["A map", "A piano", "A keyboard", "A riddle book"],
+    correct: 2,
+  },
+  {
+    question: "What gets wetter and wetter the more it dries?",
+    answers: ["A sponge", "A towel", "A river", "Soap"],
+    correct: 1,
+  },
+  {
+    question: "I am taken from a mine and shut up in a wooden case, from which I am never released, and yet I am used by almost every person. What am I?",
+    answers: ["Gold", "Coal", "Pencil lead (graphite)", "Iron"],
+    correct: 2,
+  },
+  {
+    question: "Two in a corner, one in a room, zero in a house, but one in a shelter. What is it?",
+    answers: ["The letter R", "The letter O", "The letter C", "The letter E"],
+    correct: 0,
+  },
+  {
+    question: "The person who makes it, sells it. The person who buys it never uses it. The person who uses it never knows they are using it. What is it?",
+    answers: ["A coffin", "A bed", "A watch", "A car"],
+    correct: 0,
+  },
+  {
+    question: "I’m light as a feather, yet the strongest man can’t hold me for much more than a minute. What am I?",
+    answers: ["Breath", "A shadow", "Time", "A secret"],
+    correct: 0,
+  },
+  {
+    question: "I have cities, but no houses. I have mountains, but no trees. I have water, but no fish. What am I?",
+    answers: ["A painting", "A map", "An island", "A dream"],
+    correct: 1,
+  },
+  {
+    question: "What can travel around the world while staying in a corner?",
+    answers: ["A stamp", "A satellite", "A shadow", "A rumor"],
+    correct: 0,
+  },
+  {
+    question: "Take away my first letter and I still sound the same. Take away my last letter and I still sound the same. Even take away my middle letter and I will still sound the same. What am I?",
+    answers: ["Empty", "Queue", "Level", "Sense"],
+    correct: 1,
+  },
+  {
+    question: "The more you take, the more you leave behind. What am I?",
+    answers: ["Memories", "Footsteps", "Breaths", "Hints"],
+    correct: 1,
+  },
+];
+
 
     this.currentQuestion = questions[Math.floor(Math.random() * questions.length)]
 
@@ -619,7 +660,7 @@ export class Level1Enemies {
     this.createPortal()
 
     // Show success message
-    this.displayMessage("Portal opened! Press E to enter and go to Level 2", 5000)
+    this.displayMessage("Portal opened! Press E to enter and go to the Clocktower", 5000)
   }
 
   onPlayerCaught(enemyType) {

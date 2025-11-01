@@ -16,7 +16,7 @@ export class Compass {
     this.compassElement.id = "compass"
     this.compassElement.style.cssText = `
       position: fixed;
-      top: 80px;
+      top: 280px;
       left: 20px;
       width: 120px;
       height: 120px;
@@ -94,7 +94,7 @@ export class Compass {
     this.distanceElement = document.createElement("div")
     this.distanceElement.style.cssText = `
       position: fixed;
-      top: 210px;
+      top: 410px;
       left: 20px;
       background: rgba(0, 0, 0, 0.8);
       color: #ffd700;
