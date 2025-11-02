@@ -21,6 +21,7 @@
       display: block;
     }
 
+    /* Loading Screen Styles */
     #loading-screen {
       position: fixed;
       top: 0;
@@ -28,7 +29,7 @@
       width: 100%;
       height: 100%;
       background-color: #000;
-      display: flex;
+      display: none;
       flex-direction: column;
       justify-content: center;
       align-items: center;
@@ -36,9 +37,19 @@
       color: white;
     }
 
+    #loading-screen.active {
+      display: flex;
+    }
+
     #loading-screen h1 {
       margin-bottom: 20px;
       font-size: 32px;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
     }
 
     #loading-bar {
@@ -61,19 +72,112 @@
       margin-top: 10px;
       font-size: 14px;
     }
+
+    /* Start Screen Styles */
+    #start-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: url('./start.png') no-repeat;
+      background-size: cover;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+      color: white;
+    }
+
+    #start-screen.hidden {
+      display: none;
+    }
+
+    #start-screen h1 {
+      font-size: 48px;
+      margin-bottom: 20px;
+      text-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+      letter-spacing: 2px;
+    }
+
+    #start-screen p {
+      font-size: 20px;
+      margin-bottom: 40px;
+      opacity: 0.9;
+      max-width: 500px;
+      text-align: center;
+    }
+
+    /* Start Button Animation */
+    #start-button {
+      padding: 15px 50px;
+      font-size: 24px;
+      font-weight: bold;
+      background-color: #5890da;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
+      
+      /* Initial state for animation */
+      opacity: 0;
+      transform: translateY(30px);
+      animation: fadeInUp 1s ease-out 0.5s forwards;
+    }
+
+    @keyframes fadeInUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    #start-button:hover {
+      background-color: #2b78c0;
+      transform: scale(1.05) translateY(0);
+      box-shadow: 0 6px 20px rgba(231, 76, 60, 0.6);
+    }
+
+    #start-button:active {
+      transform: scale(0.98) translateY(0);
+    }
+
+    /* Spinner for loading */
+    .spinner {
+      width: 50px;
+      height: 50px;
+      margin: 20px auto;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
+  <!-- Start Screen -->
+  <div id="start-screen">
+    <br><br><br><br>
+    <button id="start-button">START GAME</button>
+  </div>
+
   <!-- Loading Screen -->
-   <!--
   <div id="loading-screen">
-    <h1>Loading Game...</h1>
+    <h1 id="loading-title">Loading Level...</h1>
+    <div class="spinner"></div>
     <div id="loading-bar">
       <div id="loading-progress"></div>
     </div>
     <div id="loading-text">0%</div>
   </div>
-   -->
 
   <!-- Import Three.js from CDN -->
   <script type="importmap">
@@ -85,26 +189,61 @@
     }
   </script>
 
+  <!-- Start Button Handler -->
+  <script>
+    let gameStarted = false;
+    
+    document.getElementById('start-button').addEventListener('click', () => {
+      const startScreen = document.getElementById('start-screen');
+      startScreen.classList.add('hidden');
+      gameStarted = true;
+      
+      // Dispatch custom event to signal game should start
+      window.dispatchEvent(new Event('gameStarted'));
+    });
+
+    // Loading screen helper functions
+    window.showLoadingScreen = (levelName) => {
+      const loadingScreen = document.getElementById('loading-screen');
+      const loadingTitle = document.getElementById('loading-title');
+      const loadingProgress = document.getElementById('loading-progress');
+      const loadingText = document.getElementById('loading-text');
+      
+      loadingTitle.textContent = `Loading ${levelName}...`;
+      loadingProgress.style.width = '0%';
+      loadingText.textContent = '0%';
+      loadingScreen.classList.add('active');
+      
+      // Simulate loading progress
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += Math.random() * 15;
+        if (progress > 90) progress = 90;
+        loadingProgress.style.width = progress + '%';
+        loadingText.textContent = Math.floor(progress) + '%';
+      }, 100);
+      
+      return interval;
+    };
+
+    window.hideLoadingScreen = (interval) => {
+      const loadingScreen = document.getElementById('loading-screen');
+      const loadingProgress = document.getElementById('loading-progress');
+      const loadingText = document.getElementById('loading-text');
+      
+      if (interval) clearInterval(interval);
+      
+      // Complete the progress bar
+      loadingProgress.style.width = '100%';
+      loadingText.textContent = '100%';
+      
+      setTimeout(() => {
+        loadingScreen.classList.remove('active');
+      }, 300);
+    };
+  </script>
+
   <!-- Main Game Script -->
   <script type="module" src="./main.js"></script>
-
-  <!-- Simple loading screen removal -->
-  
-   <!--
-  <script>
-    window.addEventListener('load', () => {
-      setTimeout(() => {
-        const loadingScreen = document.getElementById('loading-screen');
-        if (loadingScreen) {
-          loadingScreen.style.opacity = '0';
-          loadingScreen.style.transition = 'opacity 0.5s ease';
-          setTimeout(() => {
-            loadingScreen.style.display = 'none';
-          }, 500);
-        }
-      }, 2000);
-    });
-  </script>
-  -->
 </body>
 </html>
