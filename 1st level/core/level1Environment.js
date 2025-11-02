@@ -275,7 +275,7 @@ export class Level1Environment {
     })
   }
 
-   url = "./sounds/nature_ambience.mp3";
+   url = "./sounds/nature1.wav";
   async loadBackgroundMusic(url) {
     return new Promise((resolve, reject) => {
       // Create audio listener if it doesn't exist
