@@ -245,9 +245,9 @@ export class Level1Enemies {
   }
 
   enterPortal() {
-    console.log("Entering portal to Clocktower...")
+    console.log("Entering portal to Bedroom...")
     
-    // Dispatch event to load Level 3 (Clocktower) - skipping Level 2
+    // Dispatch event to load Level 2 (Bedroom)
     window.dispatchEvent(new CustomEvent("loadLevel", { detail: { level: 2 } }))
   }
 
@@ -660,7 +660,7 @@ export class Level1Enemies {
     this.createPortal()
 
     // Show success message
-    this.displayMessage("Portal opened! Press E to enter and go to the Clocktower", 5000)
+    this.displayMessage("Portal opened! Press E to enter and go to the Bedroom", 5000)
   }
 
   onPlayerCaught(enemyType) {
@@ -831,80 +831,15 @@ export class Level1Enemies {
     return this.portal
   }
 
+  // Old pause menu removed - now using unified pause menu system via main.js
+  // togglePause() and showPauseScreen() disabled
   togglePause() {
-    this.isPaused = !this.isPaused
-    this.showPauseScreen()
+    // Disabled - pause menu now handled by main.js via 'O' key
+    // This method kept for backward compatibility but does nothing
   }
 
   showPauseScreen() {
-    const existingOverlay = document.getElementById("pause-overlay")
-
-    if (!this.isPaused && existingOverlay) {
-      existingOverlay.remove()
-      return
-    }
-
-    if (this.isPaused && !existingOverlay) {
-      const overlay = document.createElement("div")
-      overlay.id = "pause-overlay"
-      overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.7);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 999;
-      `
-
-      overlay.innerHTML = `
-        <div style="
-          background: white;
-          padding: 40px;
-          border-radius: 15px;
-          text-align: center;
-          box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-        ">
-          <h2 style="color: #333; margin-top: 0; font-size: 36px;">PAUSED</h2>
-          <p style="color: #666; font-size: 18px; margin: 20px 0;">Press ESC or click Resume to continue</p>
-          <button id="resume-btn" style="
-            padding: 15px 30px;
-            font-size: 18px;
-            cursor: pointer;
-            border: none;
-            border-radius: 8px;
-            background: #4CAF50;
-            color: white;
-            font-weight: bold;
-            margin: 10px;
-          ">Resume</button>
-          <button id="restart-btn" style="
-            padding: 15px 30px;
-            font-size: 18px;
-            cursor: pointer;
-            border: none;
-            border-radius: 8px;
-            background: #2196F3;
-            color: white;
-            font-weight: bold;
-            margin: 10px;
-          ">Restart</button>
-        </div>
-      `
-
-      document.body.appendChild(overlay)
-
-      document.getElementById("resume-btn").addEventListener("click", () => {
-        this.togglePause()
-      })
-
-      document.getElementById("restart-btn").addEventListener("click", () => {
-        this.resetGame()
-        this.togglePause()
-      })
-    }
+    // Disabled - pause menu now handled by main.js
+    // Old pause overlay will not be shown
   }
 }

@@ -226,99 +226,84 @@ selectAnswer(index) {
   }
 
   showGameWon() {
-  // Credits names - user will provide these
-  const creditsNames = [
-    'Your Name Here',
-    'Team Member 1',
-    'Team Member 2',
-    // Add more names as needed
-  ];
-
-  this.container.innerHTML = `
-    <div style="
-      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-      padding: 40px;
-      border-radius: 15px;
-      min-width: 400px;
-      max-width: 700px;
-      text-align: center;
-      box-shadow: 0 0 30px rgba(0,0,0,0.7);
-      color: white;
-      font-family: 'Arial', sans-serif;
-    ">
-      <h2 style="font-size: 2.5em; margin-bottom: 20px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">🏆 Victory! 🏆</h2>
-      <p style="font-size: 1.2em; margin-bottom: 30px;">You've escaped the Clocktower!</p>
-      
-      <div style="
-        background: rgba(255,255,255,0.1);
-        padding: 25px;
-        border-radius: 10px;
-        margin: 30px 0;
-        border: 2px solid rgba(255,255,255,0.3);
-      ">
-        <h3 style="font-size: 1.8em; margin-bottom: 20px; text-decoration: underline;">Credits</h3>
-        <div style="font-size: 1.3em; line-height: 2em;">
-          ${creditsNames.map(name => `<div style="margin: 10px 0;">${name}</div>`).join('')}
-        </div>
-      </div>
-      
-      <button id="restart-btn" style="
-        margin-top: 20px;
-        padding: 15px 30px;
-        border: none;
-        border-radius: 8px;
-        background: #28a745;
-        color: white;
-        cursor: pointer;
-        font-size: 1.2rem;
-        font-weight: bold;
-        transition: background 0.3s;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-      " onmouseover="this.style.background='#218838'" onmouseout="this.style.background='#28a745'">Play Again</button>
-    </div>
-  `;
-  this.container.style.visibility = 'visible';
-
-  const restartBtn = this.container.querySelector('#restart-btn');
-  restartBtn.addEventListener('click', () => {
+    // Hide quiz container first
     this.container.style.visibility = 'hidden';
-    window.location.reload();
-  });
-}
+    
+    // Credits names - user will provide these
+    const creditsNames = [
+      'Your Name Here',
+      'Team Member 1',
+      'Team Member 2',
+      // Add more names as needed
+    ];
 
-showGameLost() {
-  this.container.innerHTML = `
-    <div style="
-      background: #222;
-      padding: 30px;
-      border-radius: 10px;
-      min-width: 300px;
-      max-width: 600px;
-      text-align: center;
-      box-shadow: 0 0 20px rgba(0,0,0,0.5);
-    ">
-      <h2>💔 Game Over</h2>
-      <p>Time has run out... Try again!</p>
-      <button id="restart-btn" style="
-        margin-top: 10px;
-        padding: 10px 20px;
-        border:none;
-        border-radius:5px;
-        background:#dc3545;
-        color:white;
-        cursor:pointer;
-        font-size:1rem;
-      ">Retry</button>
-    </div>
-  `;
-  this.container.style.visibility = 'visible';
+    // Show animated credits
+    if (typeof window.showAnimatedCredits === 'function') {
+      window.showAnimatedCredits(creditsNames);
+    } else {
+      // Fallback if animated credits not loaded
+      this.container.innerHTML = `
+        <div style="
+          background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+          padding: 40px;
+          border-radius: 15px;
+          min-width: 400px;
+          max-width: 700px;
+          text-align: center;
+          box-shadow: 0 0 30px rgba(0,0,0,0.7);
+          color: white;
+          font-family: 'Arial', sans-serif;
+        ">
+          <h2 style="font-size: 2.5em; margin-bottom: 20px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">🏆 Victory! 🏆</h2>
+          <p style="font-size: 1.2em; margin-bottom: 30px;">You've escaped the Clocktower!</p>
+          
+          <div style="
+            background: rgba(255,255,255,0.1);
+            padding: 25px;
+            border-radius: 10px;
+            margin: 30px 0;
+            border: 2px solid rgba(255,255,255,0.3);
+          ">
+            <h3 style="font-size: 1.8em; margin-bottom: 20px; text-decoration: underline;">Credits</h3>
+            <div style="font-size: 1.3em; line-height: 2em;">
+              ${creditsNames.map(name => `<div style="margin: 10px 0;">${name}</div>`).join('')}
+            </div>
+          </div>
+          
+          <button id="restart-btn" style="
+            margin-top: 20px;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            background: #28a745;
+            color: white;
+            cursor: pointer;
+            font-size: 1.2rem;
+            font-weight: bold;
+            transition: background 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+          " onmouseover="this.style.background='#218838'" onmouseout="this.style.background='#28a745'">Play Again</button>
+        </div>
+      `;
+      this.container.style.visibility = 'visible';
 
-  const restartBtn = this.container.querySelector('#restart-btn');
-  restartBtn.addEventListener('click', () => {
-    this.container.style.visibility = 'hidden'; // hide the modal
-    window.location.reload(); // or reset game state
-  });
-}
+      const restartBtn = this.container.querySelector('#restart-btn');
+      if (restartBtn) {
+        restartBtn.addEventListener('click', () => {
+          this.container.style.visibility = 'hidden';
+          window.location.reload();
+        });
+      }
+    }
+  }
+
+  showGameLost() {
+    // Hide quiz container - main.js will show the lose overlay
+    this.container.style.visibility = 'hidden';
+    this.clearClue();
+    
+    // Note: The lose message and level transition is handled by main.js onGameLost callback
+  }
 closeQuiz(delay = 0) {
   if (delay > 0) {
     setTimeout(() => {

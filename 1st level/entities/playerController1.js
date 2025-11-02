@@ -133,13 +133,8 @@ export class PlayerController1 {
         e.preventDefault()
       }
 
-      if (e.code === "Escape") {
-        const enemySystem = this.environment.getEnemySystem()
-        if (enemySystem) {
-          enemySystem.togglePause()
-        }
-        e.preventDefault()
-      }
+      // Removed ESC pause - now using 'O' key via main.js pause menu
+      // ESC key handling removed to use unified pause system
     })
 
     document.addEventListener("keyup", (e) => {
