@@ -229,12 +229,14 @@ selectAnswer(index) {
     // Hide quiz container first
     this.container.style.visibility = 'hidden';
     
-    // Credits names - user will provide these
+    // Credits names - Add your team member names here
     const creditsNames = [
-      'Your Name Here',
-      'Team Member 1',
-      'Team Member 2',
-      // Add more names as needed
+      'Matimu Khosa',
+      'Thato Nkosi',
+      'Austin Mthombeni',
+      'Levy Mashilo',
+      'Tshepo Phaswane',
+      'Simamnkele Mlisana'
     ];
 
     // Show animated credits

@@ -16,27 +16,30 @@ export class Environment {
     // Scene background color
     this.scene.background = new THREE.Color(0xaec6cf);
 
-    // Lights (reduced ambient for Level 2 to increase shadow intensity)
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.4);
+    // Lights - Reduced ambient for more intense shadows
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
     hemiLight.position.set(0, 200, 0);
     this.scene.add(hemiLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.3);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
     dirLight.position.set(5, 10, 7.5);
     dirLight.castShadow = true;
-    
-    // Configure shadow camera for better quality
-    dirLight.shadow.mapSize.width = 2048;
-    dirLight.shadow.mapSize.height = 2048;
-    dirLight.shadow.camera.near = 0.5;
-    dirLight.shadow.camera.far = 100;
-    dirLight.shadow.camera.left = -50;
-    dirLight.shadow.camera.right = 50;
-    dirLight.shadow.camera.top = 50;
-    dirLight.shadow.camera.bottom = -50;
-    dirLight.shadow.bias = -0.0005;
-    dirLight.shadow.radius = 4;
-    
+    // Improve shadow quality and cover a larger area (helps indoor rooms)
+    try {
+      dirLight.shadow.mapSize.width = 2048;
+      dirLight.shadow.mapSize.height = 2048;
+      dirLight.shadow.camera.near = 0.5;
+      dirLight.shadow.camera.far = 200;
+      // Expand orthographic shadow camera to cover typical room sizes
+      dirLight.shadow.camera.left = -50;
+      dirLight.shadow.camera.right = 50;
+      dirLight.shadow.camera.top = 50;
+      dirLight.shadow.camera.bottom = -50;
+      // Slight bias to reduce shadow acne
+      dirLight.shadow.bias = -0.0005;
+    } catch (e) {
+      // ignore if shadow properties aren't available for this three.js build
+    }
     this.scene.add(dirLight);
 
     // NOTE: removed the brown ground mesh here so the room's floor (from GLB)
@@ -71,15 +74,6 @@ export class Environment {
           // We'll set the player position later (after room loads) if needed.
           this.player.position.set(0, 0, 0);
           this.player.name = "player";
-          
-          // Enable shadows on player model
-          this.player.traverse((child) => {
-            if (child.isMesh) {
-              child.castShadow = true;
-              child.receiveShadow = true;
-            }
-          });
-          
           this.scene.add(this.player);
 
           // Animation mixer

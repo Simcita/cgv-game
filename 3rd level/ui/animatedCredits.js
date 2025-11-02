@@ -78,7 +78,7 @@ export function showAnimatedCredits(creditsNames = []) {
 
   // Adventure logo
   creditsRoll.appendChild(createCreditSection(
-    '<div style="font-size: 80px; color: #ffd700; text-shadow: 0 0 20px #ffd700, 0 0 40px #ffd700, 0 0 60px #ffd700, 4px 4px 8px rgba(0,0,0,0.9); animation: pulse 2s infinite;">⚔️ ADVENTURE GAME ⚔️</div>',
+    '<div style="font-size: 80px; color: #ffd700; text-shadow: 0 0 20px #ffd700, 0 0 40px #ffd700, 0 0 60px #ffd700, 4px 4px 8px rgba(0,0,0,0.9); animation: pulse 2s infinite;">⚔️ Adventures in Between ⚔️</div>',
     'credit-logo'
   ));
 

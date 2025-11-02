@@ -68,8 +68,8 @@ export function train(scene, camera, player, renderer) {
   );
   scene.add(wallNearMirror);
 
-  // --- Ambient light --- (reduced intensity for stronger shadows)
-  const ambient = new THREE.HemisphereLight(0xffffff, 0x444444, 0.2);
+  // --- Ambient light --- (reduced for more intense shadows)
+  const ambient = new THREE.HemisphereLight(0xffffff, 0x444444, 0.3);
   roomGroup.add(ambient);
   scene.add(roomGroup);
 
