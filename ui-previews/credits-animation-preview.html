@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Animated Credits Preview</title>
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    font-family: 'Arial', sans-serif;
+    overflow: hidden;
+  }
+  
+  .stars {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+  }
+  
+  .star {
+    position: absolute;
+    background: white;
+    border-radius: 50%;
+    animation: twinkle 2s infinite;
+  }
+  
+  @keyframes twinkle {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+  
+  .credits-container {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    perspective: 1000px;
+    overflow: hidden;
+  }
+  
+  .credits-roll {
+    position: absolute;
+    width: 100%;
+    height: 300%;
+    top: 100%;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    animation: rollUp 30s linear;
+    transform-style: preserve-3d;
+  }
+  
+  @keyframes rollUp {
+    0% {
+      transform: translateY(0) rotateX(0deg);
+    }
+    100% {
+      transform: translateY(-66.66%) rotateX(0deg);
+    opacity: 1;
+    filter: blur(0px);
+    transform: translateY(-66.66%) scale(1);
+    opacity: 0;
+    filter: blur(10px);
+      }
+    0% {
+      transform: translateY(0) rotateX(0deg);
+    }
+    100% {
+      transform: translateY(-66.66%) rotateX(0deg);
+    }
+  }
+  
+  .credit-section {
+    margin: 100px 0;
+    text-align: center;
+    color: white;
+    text-shadow: 0 0 20px rgba(255,255,255,0.8);
+  }
+  
+  .credit-title {
+    font-size: 64px;
+    font-weight: bold;
+    margin: 40px 0;
+    color: #ffd700;
+    text-shadow: 
+      0 0 10px #ffd700,
+      0 0 20px #ffd700,
+      0 0 30px #ffd700,
+      3px 3px 6px rgba(0,0,0,0.8);
+    letter-spacing: 8px;
+    text-transform: uppercase;
+  }
+  
+  .credit-subtitle {
+    font-size: 32px;
+    margin: 60px 0 40px 0;
+    color: #87ceeb;
+    text-shadow: 
+      0 0 10px #87ceeb,
+      2px 2px 4px rgba(0,0,0,0.8);
+    letter-spacing: 4px;
+  }
+  
+  .credit-name {
+    font-size: 36px;
+    margin: 30px 0;
+    color: #ffffff;
+    text-shadow: 
+      0 0 15px rgba(255,255,255,0.6),
+      2px 2px 4px rgba(0,0,0,0.8);
+    letter-spacing: 3px;
+    font-weight: bold;
+  }
+  
+  .credit-role {
+    font-size: 24px;
+    margin: 10px 0 40px 0;
+    color: #d4af37;
+    text-shadow: 
+      0 0 10px #d4af37,
+      1px 1px 3px rgba(0,0,0,0.8);
+    font-style: italic;
+  }
+  
+  .adventure-logo {
+    font-size: 80px;
+    margin: 80px 0;
+    color: #ffd700;
+    text-shadow: 
+      0 0 20px #ffd700,
+      0 0 40px #ffd700,
+      0 0 60px #ffd700,
+      4px 4px 8px rgba(0,0,0,0.9);
+    animation: pulse 2s infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.1);
+      opacity: 0.9;
+    }
+  }
+  
+  .thank-you {
+    font-size: 48px;
+    margin: 100px 0;
+    color: #ffd700;
+    text-shadow: 
+      0 0 15px #ffd700,
+      0 0 30px #ffd700,
+      3px 3px 6px rgba(0,0,0,0.8);
+    letter-spacing: 6px;
+  }
+  
+  .scroll-indicator {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 18px;
+    text-align: center;
+    animation: fadeInOut 2s infinite;
+  }
+  
+  @keyframes fadeInOut {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+  <!-- Stars background -->
+  <div class="stars"></div>
+  
+  <div class="credits-container">
+    <div class="credits-roll">
+      <div class="credit-section">
+        <div class="adventure-logo">⚔️ ADVENTURE GAME ⚔️</div>
+      </div>
+      
+      <div class="credit-section">
+        <div class="credit-title">Credits</div>
+      </div>
+      
+      <div class="credit-section">
+        <div class="credit-subtitle">Development Team</div>
+        <div class="credit-name">Your Name Here</div>
+        <div class="credit-role">Lead Developer</div>
+        
+        <div class="credit-name">Team Member 1</div>
+        <div class="credit-role">Game Designer</div>
+        
+        <div class="credit-name">Team Member 2</div>
+        <div class="credit-role">3D Artist</div>
+        
+        <div class="credit-name">Team Member 3</div>
+        <div class="credit-role">Sound Designer</div>
+      </div>
+      
+      <div class="credit-section">
+        <div class="credit-subtitle">Special Thanks</div>
+        <div class="credit-name">Everyone Who Played</div>
+        <div class="credit-role">Beta Testers</div>
+      </div>
+      
+      <div class="credit-section">
+        <div class="thank-you">🎮 Thank You For Playing! 🎮</div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="scroll-indicator">
+    Scroll to see more...
+  </div>
+  
+  <script>
+    // Create stars
+    const starsContainer = document.querySelector('.stars');
+    for (let i = 0; i < 100; i++) {
+      const star = document.createElement('div');
+      star.className = 'star';
+      const size = Math.random() * 3 + 1;
+      star.style.width = size + 'px';
+      star.style.height = size + 'px';
+      star.style.left = Math.random() * 100 + '%';
+      star.style.top = Math.random() * 100 + '%';
+      star.style.animationDelay = Math.random() * 2 + 's';
+      starsContainer.appendChild(star);
+    }
+  </script>
+</body>
+</html>
+

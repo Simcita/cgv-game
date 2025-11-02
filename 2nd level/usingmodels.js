@@ -153,13 +153,13 @@ export async function createChildBedroom({
 
       // --- Level 2: Add room-local lighting to ensure the bedroom is lit and casts shadows ---
       try {
-        // Add a hemisphere light for soft ambient illumination
-        const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.7);
+        // Add a hemisphere light for soft ambient illumination (reduced intensity for stronger shadows)
+        const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.3);
         hemi.position.set(0, 50, 0);
         roomGroup.add(hemi);
 
-        // Directional light to create clear shadows inside the room
-        const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+        // Directional light to create clear shadows inside the room (increased intensity)
+        const dir = new THREE.DirectionalLight(0xffffff, 1.5);
         // position the light above and slightly offset from the room center
         const roomCenter = new THREE.Vector3();
         roomBox.getCenter(roomCenter);
@@ -185,6 +185,7 @@ export async function createChildBedroom({
           dir.shadow.camera.top = ext;
           dir.shadow.camera.bottom = -ext;
           dir.shadow.bias = -0.0005;
+          dir.shadow.radius = 4; // Softer shadow edges
         } catch (e) {
           // ignore if shadow camera properties are not available for this build
         }

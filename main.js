@@ -7,6 +7,9 @@ import { PlayerController3 } from './3rd level/playerController3.js';
 import { Environment } from './js/environment.js';
 import { Level2PlayerController } from './2nd level/Level2PlayerController.js';
 import { createPauseMenu } from './2nd level/pauseMenu.js';
+import { createLevel1PauseMenu } from './1st level/ui/level1PauseMenu.js';
+import { createLevel3PauseMenu } from './3rd level/ui/level3PauseMenu.js';
+import { showAnimatedCredits } from './3rd level/ui/animatedCredits.js';
 import { createChildBedroom } from './2nd level/usingmodels.js';
 import { addTrain } from './2nd level/train.js';
 import { train, createWall } from './2nd level/terrain.js';
@@ -23,6 +26,9 @@ class Game {
     this.currentPlayerController = null;
     this.isPaused = false;
     this.pauseMenu = null;
+    this.level1PauseMenu = null;
+    this.level2PauseMenu = null;
+    this.level3PauseMenu = null;
     this.level2Portal = null;
     this.level2BgAudio = null;
     this.level2LoseAudio = null;
@@ -41,6 +47,9 @@ class Game {
     // Initialize renderer
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    // Enable shadows
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.body.appendChild(this.renderer.domElement);
 
     // Initialize camera
@@ -119,6 +128,14 @@ class Game {
       }
     }
 
+    // Clean up Level 1 specific resources
+    if (this.currentLevel === 1 && this.level1PauseMenu) {
+      try {
+        this.level1PauseMenu.destroy();
+      } catch (_) {}
+      this.level1PauseMenu = null;
+    }
+
     // Clean up Level 2 specific resources
     if (this.currentLevel === 2) {
       if (this.adventureTimer) {
@@ -140,10 +157,24 @@ class Game {
           this.level2Portal.dispose();
         } catch (_) {}
       }
+      if (this.level2PauseMenu) {
+        try {
+          this.level2PauseMenu.destroy();
+        } catch (_) {}
+      }
       this.level2Portal = null;
       this.level2Blocks = null;
       this.keyInteraction = null;
       this.checkPortalInteraction = null;
+      this.level2PauseMenu = null;
+    }
+
+    // Clean up Level 3 specific resources
+    if (this.currentLevel === 3 && this.level3PauseMenu) {
+      try {
+        this.level3PauseMenu.destroy();
+      } catch (_) {}
+      this.level3PauseMenu = null;
     }
 
     // Reset pause state
@@ -151,6 +182,10 @@ class Game {
     this.clock.start();
 
     // Remove old event listeners by recreating player controller
+    // Note: Controller will be recreated in the specific level load function
+    if (this.currentPlayerController) {
+      console.log(`Cleaning up player controller for level ${this.currentLevel}`);
+    }
     this.currentPlayerController = null;
 
     try {
@@ -184,6 +219,27 @@ class Game {
       this.camera, 
       this.renderer
     );
+    console.log("✓ Level 1 using PlayerController1");
+
+    // Create Level 1 pause menu
+    if (this.level1PauseMenu) {
+      this.level1PauseMenu.destroy();
+    }
+    this.level1PauseMenu = createLevel1PauseMenu({
+      isEnabled: () => this.currentLevel === 1,
+      onResume: (paused) => {
+        this.isPaused = paused;
+        if (paused) {
+          this.clock.stop();
+        } else {
+          this.clock.start();
+          this.clock.getDelta();
+        }
+      },
+      onRestart: () => {
+        this.loadLevel(1);
+      }
+    });
 
     try {
       await this.currentEnvironment.loadTerrainModel("./models/level_1.glb", 0.02);
@@ -219,6 +275,75 @@ class Game {
       this.camera, 
       this.renderer
     );
+    console.log("✓ Level 3 using PlayerController3");
+
+    // Create Level 3 pause menu
+    if (this.level3PauseMenu) {
+      this.level3PauseMenu.destroy();
+    }
+    this.level3PauseMenu = createLevel3PauseMenu({
+      isEnabled: () => this.currentLevel === 3,
+      onResume: (paused) => {
+        this.isPaused = paused;
+        if (paused) {
+          this.clock.stop();
+        } else {
+          this.clock.start();
+          this.clock.getDelta();
+        }
+      },
+      onRestart: () => {
+        this.loadLevel(3);
+      }
+    });
+
+    // Set up Level 3 game lost handler to send back to Level 2
+    if (this.currentEnvironment.setOnGameLost) {
+      this.currentEnvironment.setOnGameLost(() => {
+        // Close quiz menu if open
+        if (this.currentEnvironment.quizUI) {
+          try {
+            if (this.currentEnvironment.quizUI.closeQuiz) {
+              this.currentEnvironment.quizUI.closeQuiz();
+            }
+            if (this.currentEnvironment.quizUI.container) {
+              this.currentEnvironment.quizUI.container.style.visibility = 'hidden';
+            }
+          } catch (_) {}
+        }
+        
+        // Show lose message
+        const overlay = document.createElement("div");
+        overlay.id = "level3-lose-overlay";
+        overlay.style.cssText = `
+          position: fixed; inset: 0; background: rgba(0,0,0,0.9);
+          display: flex; align-items: center; justify-content: center; z-index: 3000;
+        `;
+        const box = document.createElement("div");
+        box.style.cssText = `
+          background: #222; padding: 30px; border-radius: 12px;
+          font-family: Arial, sans-serif; color: #dc3545; font-size: 24px;
+          text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.7);
+        `;
+        box.innerHTML = `
+          <h2 style="margin: 0 0 15px 0;">💔 Game Over</h2>
+          <p style="margin: 0;">Quiz failed... Returning to Level 2!</p>
+        `;
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+
+        // Send back to Level 2 when quiz fails in Level 3
+        setTimeout(() => {
+          try {
+            document.body.removeChild(overlay);
+          } catch (_) {}
+          this.loadLevel(2);
+        }, 2000);
+      });
+    }
+
+    // Set up animated credits function globally for Level 3
+    window.showAnimatedCredits = showAnimatedCredits;
 
     // Load player model
     const gltf = await this.currentEnvironment.loadPlayerModel();
@@ -248,24 +373,28 @@ class Game {
       this.camera,
       this.renderer
     );
+    console.log("✓ Level 2 using Level2PlayerController");
+    console.log("✓ Level2PlayerController instance:", this.currentPlayerController.constructor.name);
 
     // Initialize pause menu for Level 2
-    if (!this.pauseMenu) {
-      this.pauseMenu = createPauseMenu({
-        isEnabled: () => this.currentLevel === 2
-      });
-      
-      this.pauseMenu.onPause(() => {
-        this.isPaused = true;
-        this.clock.stop();
-      });
-      
-      this.pauseMenu.onResume(() => {
-        this.isPaused = false;
-        this.clock.start();
-        this.clock.getDelta();
-      });
+    if (this.level2PauseMenu) {
+      this.level2PauseMenu.destroy();
     }
+    this.pauseMenu = createPauseMenu({
+      isEnabled: () => this.currentLevel === 2
+    });
+    this.level2PauseMenu = this.pauseMenu;
+    
+    this.pauseMenu.onPause(() => {
+      this.isPaused = true;
+      this.clock.stop();
+    });
+    
+    this.pauseMenu.onResume(() => {
+      this.isPaused = false;
+      this.clock.start();
+      this.clock.getDelta();
+    });
 
     // Level 2 Audio
     try {
@@ -420,16 +549,71 @@ class Game {
         player: this.currentEnvironment.getPlayer(),
         camera: this.camera,
         onAttempt: (quizIndex) => {
-          if (this.adventureTimer && this.adventureTimer.setQuizProgress) {
-            this.adventureTimer.setQuizProgress(
-              quizIndex + 1,
-              this.level2QuizTotal
-            );
-          }
+          // Don't update counter on attempt, only on completion
         },
         onComplete: (quizIndex) => {
           this.level2QuizCompleted += 1;
+          
+          // Update quiz counter when quiz is completed
+          if (this.adventureTimer && this.adventureTimer.setQuizProgress) {
+            this.adventureTimer.setQuizProgress(
+              this.level2QuizCompleted,
+              this.level2QuizTotal
+            );
+          }
+          
           if (this.level2QuizCompleted >= this.level2QuizTotal) {
+            // Show clue message after completing both quizzes
+            try {
+              // Add CSS animation if not already added
+              if (!document.getElementById('level2-clue-animation-style')) {
+                const style = document.createElement('style');
+                style.id = 'level2-clue-animation-style';
+                style.textContent = `
+                  @keyframes fadeInOut {
+                    0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
+                    15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+                    85% { opacity: 1; transform: translateX(-50%) translateY(0); }
+                    100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+                  }
+                `;
+                document.head.appendChild(style);
+              }
+              
+              const clueHint = document.createElement("div");
+              clueHint.id = "level2-completion-clue";
+              clueHint.textContent = "The blocks aren't just decoration—they can lift you where pillows rest, but beware: they may flee if you hesitate.";
+              clueHint.style.cssText = `
+                position: fixed;
+                bottom: 32px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(230,243,255,0.95) 100%);
+                color: #004a99;
+                border: 3px solid #66b3ff;
+                border-radius: 12px;
+                padding: 15px 25px;
+                font-family: 'Comic Sans MS', 'Arial Rounded MT Bold', cursive;
+                font-size: 18px;
+                z-index: 2500;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+                max-width: 600px;
+                text-align: center;
+                line-height: 1.5;
+                animation: fadeInOut 8s ease-in-out forwards;
+              `;
+              document.body.appendChild(clueHint);
+              
+              // Remove clue after 8 seconds
+              setTimeout(() => {
+                try {
+                  if (clueHint.parentNode) {
+                    clueHint.parentNode.removeChild(clueHint);
+                  }
+                } catch (_) {}
+              }, 8000);
+            } catch (_) {}
+            
             // Spawn portal after completing quizzes
             try {
               this.level2Portal = createPortal({
@@ -574,6 +758,13 @@ class Game {
 
   handleLevel2Timeout() {
     try {
+      // Close quiz menu if open
+      window.LEVEL2_QUIZ_ACTIVE = false;
+      const quizOverlay = document.getElementById('level2-quiz-overlay');
+      if (quizOverlay) {
+        quizOverlay.style.display = 'none';
+      }
+      
       // Stop background music and play lose SFX
       if (this.level2BgAudio) {
         try {
@@ -608,7 +799,7 @@ class Game {
       `;
       box.innerHTML = `
         <h2>You lose! Time ran out.</h2>
-        <p>Restarting level...</p>
+        <p>Returning to Level 1...</p>
       `;
       overlay.appendChild(box);
       document.body.appendChild(overlay);
@@ -619,7 +810,7 @@ class Game {
         this.adventureTimer.hide();
       }
 
-      // Reload Level 2 after delay
+      // Send back to Level 1 after delay
       setTimeout(() => {
         try {
           document.body.removeChild(overlay);
@@ -628,11 +819,11 @@ class Game {
         if (this.pauseMenu) {
           this.pauseMenu.hide();
         }
-        this.loadLevel(2);
+        this.loadLevel(1);
       }, 2000);
     } catch (e) {
       console.warn("Failed to handle timeout:", e);
-      this.loadLevel(2);
+      this.loadLevel(1);
     }
   }
 
@@ -671,7 +862,14 @@ class Game {
           if (mkPos && playerPos) {
             const distance = mkPos.distanceTo(playerPos);
             if (distance < 1.5 && !this.isPaused) {
-              // Player caught - pause and restart
+              // Player caught - close quiz menu if open
+              window.LEVEL2_QUIZ_ACTIVE = false;
+              const quizOverlay = document.getElementById('level2-quiz-overlay');
+              if (quizOverlay) {
+                quizOverlay.style.display = 'none';
+              }
+              
+              // Pause game
               this.isPaused = true;
               if (this.pauseMenu) {
                 this.pauseMenu.show();
@@ -698,7 +896,7 @@ class Game {
               `;
               box.innerHTML = `
                 <h2>You were caught!</h2>
-                <p>Restarting level...</p>
+                <p>Returning to Level 1...</p>
               `;
               overlay.appendChild(box);
               document.body.appendChild(overlay);
@@ -711,7 +909,8 @@ class Game {
                 if (this.pauseMenu) {
                   this.pauseMenu.hide();
                 }
-                this.loadLevel(2);
+                // Send back to Level 1 when caught in Level 2
+                this.loadLevel(1);
               }, 2000);
             }
           }
@@ -744,7 +943,12 @@ class Game {
       }
 
       // Update player controller (uses delta=0 when paused)
-      this.currentPlayerController.update(delta, this.clock.getElapsedTime());
+      // Level2PlayerController uses (delta, elapsedTime), others use just (delta)
+      if (this.currentLevel === 2) {
+        this.currentPlayerController.update(delta, this.clock.getElapsedTime());
+      } else {
+        this.currentPlayerController.update(delta);
+      }
 
       // Render scene (always render, even when paused)
       this.renderer.render(this.currentEnvironment.getScene(), this.camera);

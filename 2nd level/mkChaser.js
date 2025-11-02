@@ -50,6 +50,15 @@ export class MKChaser {
         this.model = gltf.scene;
         this.model.scale.set(2.5, 2.5, 2.5);
         this.model.position.set(10, 0, -2);
+        
+        // Enable shadows on MK chaser model
+        this.model.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
+        });
+        
         this.scene.add(this.model);
 
         this.mixer = new THREE.AnimationMixer(this.model);
